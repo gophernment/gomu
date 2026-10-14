@@ -41,12 +41,12 @@ type Overlay struct {
 func NewOverlay() (*Overlay, error) {
 	dir, err := os.MkdirTemp("", overlayPrefix+"*")
 	if err != nil {
-		return nil, fmt.Errorf("fsys: create overlay dir: %w", err)
+		return nil, fmt.Errorf("fsys: create overlay dir: %w", cause(err))
 	}
 	dir, err = filepath.Abs(dir)
 	if err != nil {
 		_ = os.RemoveAll(dir)
-		return nil, fmt.Errorf("fsys: resolve overlay dir: %w", err)
+		return nil, fmt.Errorf("fsys: resolve overlay dir: %w", cause(err))
 	}
 	return &Overlay{dir: dir}, nil
 }
@@ -64,19 +64,19 @@ func (o *Overlay) Write(original string, src []byte) (string, error) {
 
 	backing := filepath.Join(o.dir, "src.go")
 	if err := os.WriteFile(backing, src, 0o600); err != nil {
-		return "", fmt.Errorf("fsys: write mutated source: %w", err)
+		return "", fmt.Errorf("fsys: write mutated source: %w", cause(err))
 	}
 
 	data, err := json.Marshal(struct {
 		Replace map[string]string
 	}{Replace: map[string]string{filepath.Clean(original): backing}})
 	if err != nil {
-		return "", fmt.Errorf("fsys: encode overlay: %w", err)
+		return "", fmt.Errorf("fsys: encode overlay: %w", cause(err))
 	}
 
 	jsonPath := filepath.Join(o.dir, "overlay.json")
 	if err := os.WriteFile(jsonPath, data, 0o600); err != nil {
-		return "", fmt.Errorf("fsys: write overlay: %w", err)
+		return "", fmt.Errorf("fsys: write overlay: %w", cause(err))
 	}
 	return jsonPath, nil
 }
@@ -94,7 +94,7 @@ func (o *Overlay) Close() error {
 		return ErrNotOwned
 	}
 	if err := os.RemoveAll(o.dir); err != nil {
-		return fmt.Errorf("fsys: remove overlay dir: %w", err)
+		return fmt.Errorf("fsys: remove overlay dir: %w", cause(err))
 	}
 	return nil
 }

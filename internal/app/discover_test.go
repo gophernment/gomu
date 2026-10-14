@@ -247,3 +247,42 @@ func FuzzDiscoverPattern(f *testing.F) {
 		}
 	})
 }
+
+// failingListingFS cannot list one directory.
+type failingListingFS struct {
+	fstest.MapFS
+	dir string
+}
+
+func (f failingListingFS) ReadDir(name string) ([]fs.DirEntry, error) {
+	if name == f.dir {
+		return nil, errFailingListing
+	}
+	return f.MapFS.ReadDir(name)
+}
+
+var errFailingListing = errors.New("cannot list")
+
+func TestDiscoverReportsListingErrors(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name    string
+		dir     string
+		pattern string
+	}{
+		{"the directory itself", "pkg", "pkg"},
+		{"a directory below the pattern", "pkg/sub", "pkg/..."},
+		{"the root", ".", "./..."},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			_, err := discover(t, failingListingFS{tree(), tt.dir}, tt.pattern)
+			if !errors.Is(err, errFailingListing) {
+				t.Errorf("error = %v, want %v", err, errFailingListing)
+			}
+		})
+	}
+}

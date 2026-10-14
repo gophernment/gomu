@@ -310,6 +310,9 @@ func TestOverlayWriteFailsWhenDirIsGone(t *testing.T) {
 
 // Not parallel: t.Setenv changes the process environment.
 func TestNewOverlayFailsWithoutTempDir(t *testing.T) {
+	// A mutant may carry on after the failure with an empty directory, which
+	// means the current one. Make that harmless.
+	t.Chdir(t.TempDir())
 	t.Setenv("TMPDIR", filepath.Join(t.TempDir(), "missing"))
 	t.Setenv("TMP", os.Getenv("TMPDIR"))
 	t.Setenv("TEMP", os.Getenv("TMPDIR"))

@@ -571,7 +571,7 @@ func TestSandboxTempDir(t *testing.T) {
 		t.Fatalf("TempDir() error = %v", err)
 	}
 	if !filepath.IsAbs(tmp) || filepath.Dir(tmp) != s.Dir() {
-		t.Errorf("TempDir() = %q, want an absolute directory directly inside %q", tmp, s.Dir())
+		t.Fatalf("TempDir() = %q, want an absolute directory directly inside %q", tmp, s.Dir())
 	}
 	if !strings.HasPrefix(filepath.Base(tmp), ".") {
 		t.Errorf("TempDir() = %q: the go tool would see it as a package directory", tmp)

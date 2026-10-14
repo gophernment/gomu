@@ -446,3 +446,15 @@ func TestParseReportsReadErrorAtMaxSize(t *testing.T) {
 		t.Errorf("Parse() error = %v, want %v", err, boom)
 	}
 }
+
+func TestParseReportsReadError(t *testing.T) {
+	t.Parallel()
+
+	boom := errors.New("disk on fire")
+	r := io.MultiReader(strings.NewReader("mode: set\n"), iotest.ErrReader(boom))
+
+	_, err := cover.Parse(r)
+	if !errors.Is(err, boom) || errors.Is(err, cover.ErrTooLarge) {
+		t.Errorf("Parse() error = %v, want the read error, not %v", err, cover.ErrTooLarge)
+	}
+}

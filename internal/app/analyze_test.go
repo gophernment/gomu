@@ -35,10 +35,14 @@ type fakeBaseline struct {
 	duration time.Duration
 	err      error
 	calls    int
+	onRun    func() // called during Run, e.g. to cancel the context
 }
 
 func (b *fakeBaseline) Run(context.Context) (app.Coverage, time.Duration, error) {
 	b.calls++
+	if b.onRun != nil {
+		b.onRun()
+	}
 	return b.cov, b.duration, b.err
 }
 
@@ -354,6 +358,26 @@ func TestAnalyzeContext(t *testing.T) {
 		}
 		if a.finder.calls != 0 {
 			t.Error("work started although the context was already canceled")
+		}
+	})
+
+	t.Run("canceled during the baseline", func(t *testing.T) {
+		t.Parallel()
+
+		a := newAnalysis(map[string]int{"x.go": 2}, "x.go")
+		ctx, cancel := context.WithCancel(context.Background())
+		defer cancel()
+		a.baseline.onRun = cancel
+
+		res, err := a.analyze(0).Run(ctx)
+		if !errors.Is(err, context.Canceled) {
+			t.Errorf("error = %v, want %v", err, context.Canceled)
+		}
+		if len(a.built) != 0 {
+			t.Errorf("prepared %v although the context was canceled", a.built)
+		}
+		if res.Passed {
+			t.Error("a canceled run passed")
 		}
 	})
 

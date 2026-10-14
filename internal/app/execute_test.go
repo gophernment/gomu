@@ -36,6 +36,7 @@ type world struct {
 	openErr    func(n int) error // n is the 1-based call number
 	renderErr  int               // site index whose Render fails, -1 for none
 	overlayErr error
+	writeErr   error // makes Overlay.Write fail
 	runnerFn   func(ctx context.Context, src string) (mutant.Status, error)
 }
 
@@ -130,6 +131,9 @@ func (w *world) newOverlay() (app.Overlay, error) {
 }
 
 func (o *fakeOverlay) Write(path string, src []byte) (string, error) {
+	if o.w.writeErr != nil {
+		return "", o.w.writeErr
+	}
 	o.w.mu.Lock()
 	defer o.w.mu.Unlock()
 
@@ -456,6 +460,15 @@ func TestRunSetupErrors(t *testing.T) {
 			},
 		},
 		{
+			name:  "overlay cannot be written",
+			setup: func(w *world) { w.writeErr = boom },
+			check: func(t *testing.T, w *world) {
+				if w.runs.Load() != 0 {
+					t.Error("runner called without an overlay file")
+				}
+			},
+		},
+		{
 			name:  "overlay cannot be created",
 			setup: func(w *world) { w.overlayErr = boom },
 			check: func(t *testing.T, w *world) {
@@ -499,6 +512,27 @@ func TestRunDetectsFilesThatDisagree(t *testing.T) {
 		ff := f.(*fakeFile)
 		ff.sites = ff.sites[:3] // the second copy differs
 		return ff, nil
+	}
+
+	if _, err := e.Run(context.Background()); !errors.Is(err, app.ErrSiteMismatch) {
+		t.Errorf("Run() error = %v, want %v", err, app.ErrSiteMismatch)
+	}
+}
+
+func TestRunDetectsFilesWithMovedSites(t *testing.T) {
+	t.Parallel()
+
+	w := newWorld(5)
+	e := w.execute(2)
+
+	var n atomic.Int32
+	e.OpenFile = func() (app.File, error) {
+		f, _ := w.openFile()
+		if n.Add(1) > 1 {
+			ff := f.(*fakeFile)
+			ff.sites[2].Mutant.Pos.Line += 10 // same number of sites, one elsewhere
+		}
+		return f, nil
 	}
 
 	if _, err := e.Run(context.Background()); !errors.Is(err, app.ErrSiteMismatch) {

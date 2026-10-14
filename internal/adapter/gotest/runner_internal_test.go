@@ -4,8 +4,10 @@ package gotest
 
 import (
 	"context"
+	"errors"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 
@@ -145,5 +147,51 @@ func TestSetupFailureIsNotViable(t *testing.T) {
 	}
 	if got != mutant.NotViable {
 		t.Errorf("Run() = %v, want %v", got, mutant.NotViable)
+	}
+}
+
+func fakeGoScript(t *testing.T, body string) string {
+	t.Helper()
+
+	p := filepath.Join(t.TempDir(), "go")
+	if err := os.WriteFile(p, []byte("#!/bin/sh\n"+body+"\n"), 0o700); err != nil {
+		t.Fatal(err)
+	}
+	return p
+}
+
+// go test that dies without printing a test result is not a verdict.
+func TestExitWithoutResultIsUnexpected(t *testing.T) {
+	t.Parallel()
+
+	r := &Runner{goBin: fakeGoScript(t, "exit 3"), dir: t.TempDir(), timeout: time.Minute, grace: time.Second, waitDelay: time.Second}
+
+	_, err := r.Run(context.Background(), Job{Pkg: ".", Overlay: "/overlay.json"})
+	if !errors.Is(err, ErrUnexpected) || !strings.Contains(err.Error(), "exit code 3") {
+		t.Errorf("Run() error = %v, want %v with the exit code", err, ErrUnexpected)
+	}
+}
+
+func TestMissingGoBinaryIsUnexpected(t *testing.T) {
+	t.Parallel()
+
+	missing := filepath.Join(t.TempDir(), "no-such-go")
+	r := &Runner{goBin: missing, dir: t.TempDir(), timeout: time.Minute, grace: time.Second, waitDelay: time.Second}
+
+	_, err := r.Run(context.Background(), Job{Pkg: ".", Overlay: "/overlay.json"})
+	if !errors.Is(err, ErrUnexpected) {
+		t.Fatalf("Run() error = %v, want %v", err, ErrUnexpected)
+	}
+	if strings.Contains(err.Error(), missing) {
+		t.Errorf("error leaks the path of the go tool: %v", err)
+	}
+}
+
+// Not parallel: t.Setenv changes process-wide state.
+func TestNewRunnerWithoutGoTool(t *testing.T) {
+	t.Setenv("PATH", t.TempDir())
+
+	if _, err := NewRunner(t.TempDir(), time.Second); err == nil {
+		t.Error("NewRunner() succeeded without a go tool on PATH")
 	}
 }
