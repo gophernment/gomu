@@ -21,6 +21,7 @@ import (
 	"os/signal"
 	"path"
 	"path/filepath"
+	"slices"
 	"strconv"
 	"strings"
 	"syscall"
@@ -74,7 +75,7 @@ func parseArgs(args []string, stderr io.Writer) (config, error) {
 	fl.Float64Var(&cfg.threshold, "threshold", 0, "minimum mutation score in `percent` (0-100); exit 1 below it. 0 disables")
 	fl.IntVar(&cfg.workers, "workers", 0, "parallel test runs per file; 0 means GOMAXPROCS")
 	fl.BoolVar(&cfg.verbose, "v", false, "list every mutant, not only the survivors")
-	fl.StringVar(&cfg.format, "format", "text", "report `format` on stdout: text or json")
+	fl.StringVar(&cfg.format, "format", "text", "report `format` on stdout: text, json or html")
 	fl.Usage = func() {
 		fmt.Fprint(stderr, `usage: gomu [flags] [pattern ...]
 
@@ -109,8 +110,8 @@ flags:
 	if cfg.workers < 0 {
 		return config{}, errors.New("-workers must not be negative")
 	}
-	if cfg.format != "text" && cfg.format != "json" {
-		return config{}, errors.New("-format must be text or json")
+	if !slices.Contains([]string{"text", "json", "html"}, cfg.format) {
+		return config{}, errors.New("-format must be text, json or html")
 	}
 	return cfg, nil
 }
@@ -148,8 +149,11 @@ func run(ctx context.Context, args []string, stdout, stderr io.Writer) int {
 func reporter(cfg config) interface {
 	Write(io.Writer, []mutant.Mutant) error
 } {
-	if cfg.format == "json" {
+	switch cfg.format {
+	case "json":
 		return report.JSON{Verbose: cfg.verbose}
+	case "html":
+		return report.HTML{Verbose: cfg.verbose}
 	}
 	return report.Text{Verbose: cfg.verbose}
 }

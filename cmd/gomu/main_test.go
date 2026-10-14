@@ -621,3 +621,32 @@ func TestJSONFormat(t *testing.T) {
 		}
 	})
 }
+
+func TestHTMLFormat(t *testing.T) {
+	t.Parallel()
+	needGo(t)
+
+	dir := fixture(t, map[string]string{
+		"go.mod":      "module example.com/fx\n\ngo 1.21\n",
+		"add.go":      fxAdd,
+		"add_test.go": fxAddTest,
+	})
+
+	code, stdout, stderr := gomu(context.Background(), "-dir", dir, "-format", "html")
+	if code != exitOK {
+		t.Fatalf("exit code = %d, stderr:\n%s", code, stderr)
+	}
+	for _, want := range []string{"<!doctype html>", "Gomu mutation report", "add.go", "survived"} {
+		if !strings.Contains(stdout, want) {
+			t.Errorf("page lacks %q:\n%s", want, stdout)
+		}
+	}
+	if strings.Contains(stdout, "<script") {
+		t.Errorf("page must not contain script:\n%s", stdout)
+	}
+
+	code, _, _ = gomu(context.Background(), "-dir", dir, "-format", "html", "-threshold", "90")
+	if code != exitBelowThreshold {
+		t.Errorf("exit code = %d, want %d", code, exitBelowThreshold)
+	}
+}
