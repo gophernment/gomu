@@ -69,7 +69,17 @@ file. Open it in a browser or keep it as a CI artifact.
 
 Exit codes: `0` ok, `1` score below `-threshold`, `2` error (bad flag, failing baseline tests, ...).
 
-Mutation operators: `arithmetic` (`+ - * / %`), `conditional` (`< <= > >= == !=`), `logical` (`&& ||`).
+Mutation operators:
+
+| Operator      | Change                                                                                  |
+| ------------- | --------------------------------------------------------------------------------------- |
+| `arithmetic`  | `+ - * / %`, swapped in pairs                                                           |
+| `conditional` | `< <= > >= == !=`, swapped in pairs                                                     |
+| `logical`     | `&&` and `\|\|` swapped                                                                   |
+| `deletion`    | a statement that is a bare call (`cache.Invalidate(key)`) is removed; `panic` is kept   |
+
+A `deletion` mutant that leaves an unused variable or import behind does not compile and is reported as `not viable`.
+A removed `Unlock` or `Done` can hang the tests; the timeout catches it and counts it as detected.
 Only code inside function bodies is mutated. Test files, `vendor`, `testdata`, directories starting with `.` or `_`,
 and generated files are skipped. Ctrl-C (SIGINT/SIGTERM) stops the run and removes the temp copy.
 

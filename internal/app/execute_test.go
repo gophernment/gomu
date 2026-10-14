@@ -348,16 +348,24 @@ func TestRunKeepsFirstErrorWhenWorkersAreCanceled(t *testing.T) {
 
 	boom := errors.New("first failure")
 	w := newWorld(8)
+	var gaveUp atomic.Bool
 	w.runnerFn = func(ctx context.Context, src string) (mutant.Status, error) {
 		if src == "mut:0" {
 			return mutant.Pending, boom
 		}
-		return mutant.Pending, waitForCancel(ctx) // the others only stop because of the failure
+		err := waitForCancel(ctx) // the others only stop because of the failure
+		if errors.Is(err, errNeverCanceled) {
+			gaveUp.Store(true)
+		}
+		return mutant.Pending, err
 	}
 
 	_, err := w.execute(4).Run(context.Background())
 	if !errors.Is(err, boom) {
 		t.Errorf("Run() error = %v, want the first failure %v", err, boom)
+	}
+	if gaveUp.Load() {
+		t.Error("a failure did not cancel the other workers")
 	}
 }
 
@@ -572,6 +580,8 @@ func waitForCancel(ctx context.Context) error {
 	case <-ctx.Done():
 		return ctx.Err()
 	case <-time.After(time.Second):
-		return errors.New("the context was never canceled")
+		return errNeverCanceled
 	}
 }
+
+var errNeverCanceled = errors.New("the context was never canceled")

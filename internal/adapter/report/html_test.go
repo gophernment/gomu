@@ -186,3 +186,44 @@ func TestHTMLNilWriter(t *testing.T) {
 		t.Error("Write(nil) returned nil error")
 	}
 }
+
+func TestHTMLDetectedOfEvaluated(t *testing.T) {
+	t.Parallel()
+
+	got := renderHTML(t, report.HTML{}, []mutant.Mutant{
+		m("a.go", 1, 1, "arithmetic", "+", "-", mutant.Killed),
+		m("a.go", 2, 1, "arithmetic", "+", "-", mutant.TimedOut),
+		m("a.go", 3, 1, "arithmetic", "+", "-", mutant.Survived),
+		m("a.go", 4, 1, "arithmetic", "+", "-", mutant.NotCovered),
+		m("a.go", 5, 1, "arithmetic", "+", "-", mutant.NotViable),
+	})
+	if !strings.Contains(got, "2 of 3 evaluated mutants detected") {
+		t.Errorf("want killed + timed out of evaluated:\n%s", got)
+	}
+}
+
+func TestHTMLScoreLevelBoundaries(t *testing.T) {
+	t.Parallel()
+
+	// killed of 100 evaluated, so the score equals killed.
+	tests := []struct {
+		killed int
+		want   string
+	}{
+		{100, "good"}, {80, "good"}, {79, "fair"}, {60, "fair"}, {59, "poor"}, {0, "poor"},
+	}
+	for _, tt := range tests {
+		var in []mutant.Mutant
+		for i := range 100 {
+			s := mutant.Survived
+			if i < tt.killed {
+				s = mutant.Killed
+			}
+			in = append(in, m("a.go", i+1, 1, "arithmetic", "+", "-", s))
+		}
+		got := renderHTML(t, report.HTML{}, in)
+		if want := `<div class="score ` + tt.want + `">`; !strings.Contains(got, want) {
+			t.Errorf("score %d%%: want %q in page", tt.killed, want)
+		}
+	}
+}

@@ -105,3 +105,24 @@ func TestMarkerWriterFindsMarkersAcrossWrites(t *testing.T) {
 		t.Error("setupFailed set without a [setup failed] line")
 	}
 }
+
+// A fake go that prints a failure marker with no trailing newline: the last
+// line must still be examined when the process ends.
+func TestUnterminatedLastLineIsStillExamined(t *testing.T) {
+	t.Parallel()
+
+	p := filepath.Join(t.TempDir(), "go")
+	script := "#!/bin/sh\nprintf 'FAIL\\texample.com/p\\t0.1s'\nexit 1\n"
+	if err := os.WriteFile(p, []byte(script), 0o700); err != nil {
+		t.Fatal(err)
+	}
+	r := &Runner{goBin: p, dir: t.TempDir(), timeout: time.Minute, grace: time.Second, waitDelay: time.Second}
+
+	got, err := r.Run(context.Background(), Job{Pkg: ".", Overlay: "/overlay.json"})
+	if err != nil {
+		t.Fatalf("Run() error = %v", err)
+	}
+	if got != mutant.Killed {
+		t.Errorf("Run() = %v, want %v", got, mutant.Killed)
+	}
+}

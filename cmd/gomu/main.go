@@ -185,7 +185,7 @@ func analyze(ctx context.Context, cfg config, stderr io.Writer) (app.Result, err
 	work := sandbox.Dir()
 
 	var reg mutator.Registry
-	for _, m := range []mutator.Mutator{mutator.Arithmetic{}, mutator.Conditional{}, mutator.Logical{}} {
+	for _, m := range []mutator.Mutator{mutator.Arithmetic{}, mutator.Conditional{}, mutator.Logical{}, mutator.Deletion{}} {
 		if err := reg.Register(m); err != nil {
 			return app.Result{}, err
 		}

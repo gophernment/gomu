@@ -650,3 +650,43 @@ func TestHTMLFormat(t *testing.T) {
 		t.Errorf("exit code = %d, want %d", code, exitBelowThreshold)
 	}
 }
+
+func TestDeletionOperatorEndToEnd(t *testing.T) {
+	t.Parallel()
+	needGo(t)
+
+	dir := fixture(t, map[string]string{
+		"go.mod": "module example.com/fx\n\ngo 1.21\n",
+		"touch.go": `package fx
+
+var hits int
+
+func record() { hits++ }
+
+// Touch records a hit and returns 1.
+func Touch() int {
+	record()
+	return 1
+}
+`,
+		"touch_test.go": `package fx
+
+import "testing"
+
+func TestTouch(t *testing.T) {
+	if Touch() != 1 {
+		t.Fatal("want 1")
+	}
+}
+`,
+	})
+
+	code, stdout, stderr := gomu(context.Background(), "-dir", dir)
+	if code != exitOK {
+		t.Fatalf("exit code = %d, stderr:\n%s", code, stderr)
+	}
+	// No test looks at hits, so removing the record() call goes unnoticed.
+	if want := "SURVIVED    touch.go:9:2  deletion     record(...) -> (removed)"; !strings.Contains(stdout, want) {
+		t.Errorf("want %q in:\n%s", want, stdout)
+	}
+}
