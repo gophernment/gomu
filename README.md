@@ -132,4 +132,4 @@ go run ./cmd/gomu ./...      # Gomu on itself
 
 ## License
 
-[Apache-2.0](LICENSE).
+Copyright 2026 Pallat Anchaleechamaikorn. Licensed under the [Apache License 2.0](LICENSE); see [NOTICE](NOTICE).
