@@ -25,6 +25,7 @@ go install github.com/pallat/gomu/cmd/gomu@latest
 
 gomu                          # every non-test file of the module in the current directory
 gomu internal/...             # a subtree
+gomu internal/app             # the files directly in one directory
 gomu pkg/a.go pkg/b.go        # single files
 gomu -threshold 80 ./...      # exit 1 below 80%
 gomu -v -workers 4 ./...      # list every mutant, 4 parallel test runs per file
@@ -69,8 +70,8 @@ file. Open it in a browser or keep it as a CI artifact.
 Exit codes: `0` ok, `1` score below `-threshold`, `2` error (bad flag, failing baseline tests, ...).
 
 Mutation operators: `arithmetic` (`+ - * / %`), `conditional` (`< <= > >= == !=`), `logical` (`&& ||`).
-Only code inside function bodies is mutated. Test files, `vendor`, `testdata`, hidden directories and
-generated files are skipped.
+Only code inside function bodies is mutated. Test files, `vendor`, `testdata`, directories starting with `.` or `_`,
+and generated files are skipped. Ctrl-C (SIGINT/SIGTERM) stops the run and removes the temp copy.
 
 ## How it works, and why it is safe
 
@@ -91,7 +92,7 @@ Known limits:
 
 - The module root must contain `go.mod`. `replace` directives that point outside the module, `go.work`, and
   tests that need symbolic links will not work in the copy.
-- A module larger than 200,000 files or 2 GiB is refused.
+- A module larger than 200,000 files or 2 GiB is refused, and so is a source file over 10 MiB.
 - Without type information, `+` on two non-literal strings produces a mutant that fails to compile; it is
   reported as `not viable` and does not affect the score.
 - Files are tested one after another; only mutants within a file run in parallel.
