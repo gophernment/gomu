@@ -352,8 +352,7 @@ func TestRunKeepsFirstErrorWhenWorkersAreCanceled(t *testing.T) {
 		if src == "mut:0" {
 			return mutant.Pending, boom
 		}
-		<-ctx.Done() // the others only stop because of the failure
-		return mutant.Pending, ctx.Err()
+		return mutant.Pending, waitForCancel(ctx) // the others only stop because of the failure
 	}
 
 	_, err := w.execute(4).Run(context.Background())
@@ -387,8 +386,7 @@ func TestRunContext(t *testing.T) {
 		started := make(chan struct{}, 40)
 		w.runnerFn = func(ctx context.Context, _ string) (mutant.Status, error) {
 			started <- struct{}{}
-			<-ctx.Done()
-			return mutant.Pending, ctx.Err()
+			return mutant.Pending, waitForCancel(ctx)
 		}
 
 		ctx, cancel := context.WithCancel(context.Background())
@@ -560,5 +558,16 @@ func TestRunReportsCancellationEvenWhenAllWorkIsDone(t *testing.T) {
 	}
 	if len(got) != 1 || got[0].Status != wantStatus(0) {
 		t.Errorf("the finished result was lost: %+v", got)
+	}
+}
+
+// waitForCancel blocks until ctx ends. It gives up after a while, so a bug in
+// the code under test fails the test quickly instead of hanging it.
+func waitForCancel(ctx context.Context) error {
+	select {
+	case <-ctx.Done():
+		return ctx.Err()
+	case <-time.After(5 * time.Second):
+		return errors.New("the context was never canceled")
 	}
 }

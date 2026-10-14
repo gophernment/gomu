@@ -27,8 +27,10 @@ type Finder interface {
 
 // Coverage is the role of the coverage data from the baseline run.
 type Coverage interface {
-	// Covered reports whether any test executes pos. pos.File is relative to
-	// the module root.
+	// Covered reports whether pos should be tested. It must be false only when
+	// it is known that no test executes pos, and true when unsure: a mutant
+	// that is skipped by mistake is never tested. pos.File is relative to the
+	// module root.
 	Covered(pos mutant.Position) bool
 }
 

@@ -46,24 +46,40 @@ func (b block) contains(line, col int) bool {
 	return true
 }
 
-// Profile records which source ranges were executed. Only blocks with a
-// non-zero count are kept, so merged profiles work: a range counts as covered
-// when any entry for it was hit.
+// Profile records which source ranges were executed and which were not. Merged
+// profiles work: a range counts as executed when any entry for it was hit.
 type Profile struct {
-	covered map[string][]block
+	hit  map[string][]block // blocks with a non-zero count
+	miss map[string][]block // blocks with a zero count
 }
 
 // Covered reports whether the 1-based position line:col in the named file was
 // executed. name is the file name exactly as written in the profile, which is
 // the import path plus file name, such as "example.com/p/add.go".
 //
-// Code the compiler does not instrument, such as package-level variable
-// initializers, is in no block and reports false. A nil Profile covers nothing.
+// Not every position is in a block. The compiler instruments statement lists,
+// not everything between them: the expressions after "case" in a switch and
+// package-level initializers are in no block. Such a position is neither
+// Covered nor Unexecuted; it is unknown. A nil Profile covers nothing.
 func (p *Profile) Covered(name string, line, col int) bool {
 	if p == nil {
 		return false
 	}
-	for _, b := range p.covered[name] {
+	return anyContains(p.hit[name], line, col)
+}
+
+// Unexecuted reports whether the profile proves that no test executed the
+// position: it lies in a block that was never hit and in no block that was.
+// A position in no block at all is unknown, so Unexecuted is false for it.
+func (p *Profile) Unexecuted(name string, line, col int) bool {
+	if p == nil {
+		return false
+	}
+	return !anyContains(p.hit[name], line, col) && anyContains(p.miss[name], line, col)
+}
+
+func anyContains(blocks []block, line, col int) bool {
+	for _, b := range blocks {
 		if b.contains(line, col) {
 			return true
 		}
@@ -78,7 +94,7 @@ func Parse(r io.Reader) (*Profile, error) {
 	sc := bufio.NewScanner(cr)
 	sc.Buffer(make([]byte, 0, 64<<10), maxLine)
 
-	p := &Profile{covered: make(map[string][]block)}
+	p := &Profile{hit: make(map[string][]block), miss: make(map[string][]block)}
 	lineNo := 0
 	sawMode := false
 
@@ -106,7 +122,9 @@ func Parse(r io.Reader) (*Profile, error) {
 			return nil, fmt.Errorf("line %d: %w", lineNo, err)
 		}
 		if count > 0 {
-			p.covered[name] = append(p.covered[name], b)
+			p.hit[name] = append(p.hit[name], b)
+		} else {
+			p.miss[name] = append(p.miss[name], b)
 		}
 	}
 

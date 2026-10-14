@@ -177,7 +177,7 @@ func TestTextEscapesControlCharacters(t *testing.T) {
 			t.Fatalf("raw control character %U in output:\n%q", r, got)
 		}
 	}
-	for _, want := range []string{`evil\x1b[31m.go`, `x\x07`, `a\x0ab`, `c\x0d\x00d\u202e`} {
+	for _, want := range []string{`evil\x1b[31m.go`, `x\a`, `a\nb`, `c\r\x00d\u202e`} {
 		if !strings.Contains(got, want) {
 			t.Errorf("output does not contain escaped %q:\n%s", want, got)
 		}

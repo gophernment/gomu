@@ -322,8 +322,10 @@ type coverage struct {
 	profile *cover.Profile
 }
 
+// Covered is false only when the profile proves that no test executes pos. A
+// position in no block (such as a "case" expression) is tested, not skipped.
 func (c coverage) Covered(pos mutant.Position) bool {
-	return c.profile.Covered(c.module+"/"+pos.File, pos.Line, pos.Column)
+	return !c.profile.Unexecuted(c.module+"/"+pos.File, pos.Line, pos.Column)
 }
 
 // sourceFile plays app.File on top of a parsed goast.File.

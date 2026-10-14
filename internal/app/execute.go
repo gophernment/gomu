@@ -69,9 +69,9 @@ type Execute struct {
 	NewOverlay func() (Overlay, error)
 	// Runner runs the tests.
 	Runner TestRunner
-	// Covered reports whether a position is executed by any test. Mutants at
-	// uncovered positions are marked NotCovered and never run. Nil means
-	// everything is covered.
+	// Covered reports whether a position should be tested: false only if it
+	// is known that no test executes it. Mutants at such positions are marked
+	// NotCovered and never run. Nil means everything is covered.
 	Covered func(mutant.Position) bool
 
 	// Original is the absolute path of the file, exactly as the go tool sees it.
@@ -156,16 +156,26 @@ func (e Execute) Run(ctx context.Context) ([]mutant.Mutant, error) {
 		}()
 	}
 
+	// If every worker has stopped, nobody is left to take jobs; stop feeding
+	// rather than block forever.
+	workersDone := make(chan struct{})
+	go func() {
+		wg.Wait()
+		close(workersDone)
+	}()
+
 feed:
 	for _, i := range queue {
 		select {
 		case jobs <- i:
 		case <-ctx.Done():
 			break feed
+		case <-workersDone:
+			break feed
 		}
 	}
 	close(jobs)
-	wg.Wait()
+	<-workersDone
 
 	if firstErr != nil {
 		return mutants, firstErr

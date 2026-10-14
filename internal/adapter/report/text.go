@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io"
 	"slices"
+	"strconv"
 	"strings"
 	"unicode"
 
@@ -91,8 +92,9 @@ func compare(a, b mutant.Mutant) int {
 	return strings.Compare(a.Operator, b.Operator)
 }
 
-// clean escapes every rune that is not printable, using \xNN, \uNNNN, or
-// \UNNNNNNNN. Printable text, including non-ASCII letters, is kept as is.
+// clean escapes every rune that is not printable, the way a Go string literal
+// would (\n, \x1b, \u202e). Printable text, including non-ASCII letters, is
+// kept as is.
 func clean(s string) string {
 	if !strings.ContainsFunc(s, func(r rune) bool { return !unicode.IsPrint(r) }) {
 		return s
@@ -100,16 +102,12 @@ func clean(s string) string {
 
 	var b strings.Builder
 	for _, r := range s {
-		switch {
-		case unicode.IsPrint(r):
+		if unicode.IsPrint(r) {
 			b.WriteRune(r)
-		case r < 0x100:
-			fmt.Fprintf(&b, `\x%02x`, r)
-		case r < 0x10000:
-			fmt.Fprintf(&b, `\u%04x`, r)
-		default:
-			fmt.Fprintf(&b, `\U%08x`, r)
+			continue
 		}
+		q := strconv.QuoteToASCII(string(r)) // "\x1b", including the quotes
+		b.WriteString(q[1 : len(q)-1])
 	}
 	return b.String()
 }

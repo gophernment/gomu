@@ -252,6 +252,10 @@ func FuzzParse(f *testing.F) {
 		p.Covered("x/a.go", 2, 1)
 		p.Covered("", 0, 0)
 		p.Covered("x.go", -1, -1)
+		if p.Unexecuted("x/a.go", 2, 1) && p.Covered("x/a.go", 2, 1) {
+			t.Fatal("a position is both covered and unexecuted")
+		}
+		p.Unexecuted("", 0, 0)
 	})
 }
 
@@ -267,9 +271,11 @@ func TestParseRealProfile(t *testing.T) {
 	mod := t.TempDir()
 	files := map[string]string{
 		"go.mod": "module example.com/p\n\ngo 1.21\n",
-		"add.go": "package p\n\nfunc Add(a, b int) int {\n\treturn a + b\n}\n\nfunc Unused() int {\n\treturn 1\n}\n",
+		"add.go": "package p\n\nfunc Add(a, b int) int {\n\treturn a + b\n}\n\nfunc Unused() int {\n\treturn 1\n}\n\n" +
+			"func Sign(x int) int {\n\tswitch {\n\tcase x > 0:\n\t\treturn 1\n\t}\n\treturn 0\n}\n",
 		"add_test.go": "package p\n\nimport \"testing\"\n\nfunc TestAdd(t *testing.T) {\n" +
-			"\tif Add(2, 3) != 5 {\n\t\tt.Fatal(\"bad\")\n\t}\n}\n",
+			"\tif Add(2, 3) != 5 {\n\t\tt.Fatal(\"bad\")\n\t}\n}\n\n" +
+			"func TestSign(t *testing.T) {\n\tif Sign(5) != 1 {\n\t\tt.Fatal(\"bad\")\n\t}\n}\n",
 	}
 	for name, content := range files {
 		if err := os.WriteFile(filepath.Join(mod, name), []byte(content), 0o600); err != nil {
@@ -301,6 +307,18 @@ func TestParseRealProfile(t *testing.T) {
 	}
 	if p.Covered(name, 8, 2) {
 		t.Error("the body of Unused (8:2) should not be covered")
+	}
+	if !p.Unexecuted(name, 8, 2) {
+		t.Error("the body of Unused (8:2) is proven unexecuted")
+	}
+
+	// "x > 0" in "case x > 0:" is executed, but the compiler puts it in no block.
+	if p.Covered(name, 13, 9) || p.Unexecuted(name, 13, 9) {
+		t.Errorf("a case expression (13:9) should be unknown: Covered=%v Unexecuted=%v",
+			p.Covered(name, 13, 9), p.Unexecuted(name, 13, 9))
+	}
+	if !p.Covered(name, 14, 3) {
+		t.Error("the case body (14:3) should be covered")
 	}
 }
 
@@ -360,5 +378,46 @@ func TestParseAcceptsInputOfExactlyMaxSize(t *testing.T) {
 	sb.WriteString(" ")
 	if _, err := cover.Parse(strings.NewReader(sb.String())); !errors.Is(err, cover.ErrTooLarge) {
 		t.Errorf("Parse() with one byte more: error = %v, want %v", err, cover.ErrTooLarge)
+	}
+}
+
+func TestUnexecuted(t *testing.T) {
+	t.Parallel()
+
+	p := parse(t, "mode: set\n"+
+		"x/a.go:1.1,5.2 1 0\n"+ // never hit
+		"x/a.go:10.1,12.2 1 1\n"+ // hit
+		"x/b.go:1.1,3.2 1 0\n"+ // merged: one entry hit, one not
+		"x/b.go:1.1,3.2 1 1\n")
+
+	tests := []struct {
+		name      string
+		file      string
+		line, col int
+		want      bool
+	}{
+		{"inside a block that never ran", "x/a.go", 3, 1, true},
+		{"start of that block", "x/a.go", 1, 1, true},
+		{"end of that block is exclusive", "x/a.go", 5, 2, false},
+		{"inside a block that ran", "x/a.go", 11, 1, false},
+		{"between blocks is unknown", "x/a.go", 7, 1, false},
+		{"after every block is unknown", "x/a.go", 99, 1, false},
+		{"hit in a merged profile wins", "x/b.go", 2, 1, false},
+		{"unknown file", "x/nope.go", 3, 1, false},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			if got := p.Unexecuted(tt.file, tt.line, tt.col); got != tt.want {
+				t.Errorf("Unexecuted(%s %d:%d) = %v, want %v", tt.file, tt.line, tt.col, got, tt.want)
+			}
+		})
+	}
+
+	var nilProfile *cover.Profile
+	if nilProfile.Unexecuted("x/a.go", 3, 1) {
+		t.Error("Unexecuted() on a nil Profile = true")
 	}
 }

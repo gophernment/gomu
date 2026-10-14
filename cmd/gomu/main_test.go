@@ -512,3 +512,29 @@ func TestStderrIsQuietUnlessSomethingWasSkipped(t *testing.T) {
 		}
 	})
 }
+
+func TestMutantsInSwitchCasesAreTested(t *testing.T) {
+	t.Parallel()
+	needGo(t)
+
+	// Go's coverage profile has no block for the expression after "case", so
+	// the position looks unexecuted even though the tests run it.
+	dir := fixture(t, map[string]string{
+		"go.mod":  "module example.com/fx\n\ngo 1.21\n",
+		"sign.go": "package fx\n\nfunc Sign(x int) int {\n\tswitch {\n\tcase x > 0:\n\t\treturn 1\n\t}\n\treturn 0\n}\n",
+		"sign_test.go": "package fx\n\nimport \"testing\"\n\nfunc TestSign(t *testing.T) {\n" +
+			"\tif Sign(5) != 1 {\n\t\tt.Fatal(\"bad\")\n\t}\n}\n",
+	})
+
+	code, stdout, stderr := gomu(context.Background(), "-dir", dir, "-v")
+	if code != exitOK {
+		t.Fatalf("exit code = %d\n%s", code, stderr)
+	}
+	if strings.Contains(stdout, "NOT COVERED") {
+		t.Errorf("a case expression was skipped as not covered:\n%s", stdout)
+	}
+	// Sign(5) still returns 1 when > becomes >=, so this mutant must survive.
+	if !strings.Contains(stdout, "SURVIVED    sign.go:5:9  conditional  > -> >=") {
+		t.Errorf("the mutant in the case expression was not tested:\n%s", stdout)
+	}
+}
