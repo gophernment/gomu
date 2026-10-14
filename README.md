@@ -1,5 +1,9 @@
 # Gomu
 
+<p align="center">
+  <img src="assets/gomu-manga.jpg" alt="Gomu - Go Mutation Testing" width="560" />
+</p>
+
 **Go** + **mu**tation testing. Named after Luffy's Gomu Gomu no Mi: Gomu stretches your code into
 mutants and checks whether your tests are tough enough to bounce them back.
 
