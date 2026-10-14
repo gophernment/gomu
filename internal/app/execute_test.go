@@ -347,7 +347,7 @@ func TestRunKeepsFirstErrorWhenWorkersAreCanceled(t *testing.T) {
 	t.Parallel()
 
 	boom := errors.New("first failure")
-	w := newWorld(40)
+	w := newWorld(8)
 	w.runnerFn = func(ctx context.Context, src string) (mutant.Status, error) {
 		if src == "mut:0" {
 			return mutant.Pending, boom
@@ -396,7 +396,11 @@ func TestRunContext(t *testing.T) {
 			done <- err
 		}()
 
-		<-started
+		select {
+		case <-started:
+		case <-time.After(2 * time.Second):
+			t.Fatal("no test run ever started")
+		}
 		cancel()
 
 		select {
@@ -404,7 +408,7 @@ func TestRunContext(t *testing.T) {
 			if !errors.Is(err, context.Canceled) {
 				t.Errorf("Run() error = %v, want %v", err, context.Canceled)
 			}
-		case <-time.After(10 * time.Second):
+		case <-time.After(3 * time.Second):
 			t.Fatal("Run() did not return after cancellation")
 		}
 		if o, c := w.opens.Load(), w.closes.Load(); c == 0 || int(c) > int(o) {
@@ -567,7 +571,7 @@ func waitForCancel(ctx context.Context) error {
 	select {
 	case <-ctx.Done():
 		return ctx.Err()
-	case <-time.After(5 * time.Second):
+	case <-time.After(time.Second):
 		return errors.New("the context was never canceled")
 	}
 }
