@@ -123,7 +123,7 @@ func run(ctx context.Context, args []string, stdout, stderr io.Writer) int {
 		return exitError
 	}
 
-	res, err := analyze(ctx, cfg)
+	res, err := analyze(ctx, cfg, stderr)
 	if err != nil {
 		fmt.Fprintln(stderr, "gomu:", err)
 		return exitError
@@ -140,7 +140,12 @@ func run(ctx context.Context, args []string, stdout, stderr io.Writer) int {
 }
 
 // analyze wires the adapters into the Analyze context and runs it.
-func analyze(ctx context.Context, cfg config) (app.Result, error) {
+//
+// The module is copied to a temp directory and every test run happens there:
+// a mutant can make code do anything, including deleting files, and it must
+// only be able to damage the copy. Discovery and parsing only read the real
+// tree.
+func analyze(ctx context.Context, cfg config, stderr io.Writer) (app.Result, error) {
 	root, err := moduleRoot(cfg.dir)
 	if err != nil {
 		return app.Result{}, err
@@ -149,6 +154,16 @@ func analyze(ctx context.Context, cfg config) (app.Result, error) {
 	if err != nil {
 		return app.Result{}, err
 	}
+
+	sandbox, err := fsys.NewSandbox(ctx, root)
+	if err != nil {
+		return app.Result{}, fmt.Errorf("copy the module to a sandbox: %w", err)
+	}
+	defer func() { _ = sandbox.Close() }()
+	if n := sandbox.Skipped(); n > 0 {
+		fmt.Fprintf(stderr, "gomu: note: %d symbolic links or special files were not copied to the sandbox\n", n)
+	}
+	work := sandbox.Dir()
 
 	var reg mutator.Registry
 	for _, m := range []mutator.Mutator{mutator.Arithmetic{}, mutator.Conditional{}, mutator.Logical{}} {
@@ -159,7 +174,7 @@ func analyze(ctx context.Context, cfg config) (app.Result, error) {
 	mutators := reg.All()
 
 	// The baseline does not use the per-mutant timeout, so any value will do.
-	baselineRunner, err := gotest.NewRunner(root, time.Minute)
+	baselineRunner, err := gotest.NewRunner(work, time.Minute)
 	if err != nil {
 		return app.Result{}, err
 	}
@@ -169,7 +184,7 @@ func analyze(ctx context.Context, cfg config) (app.Result, error) {
 		Baseline:  baseline{runner: baselineRunner, module: mod},
 		Threshold: cfg.threshold,
 		NewExecute: func(file string, timeout time.Duration) (app.Execute, error) {
-			runner, err := gotest.NewRunner(root, timeout)
+			runner, err := gotest.NewRunner(work, timeout)
 			if err != nil {
 				return app.Execute{}, err
 			}
@@ -183,7 +198,7 @@ func analyze(ctx context.Context, cfg config) (app.Result, error) {
 					return o, nil
 				},
 				Runner:   testRunner{runner},
-				Original: filepath.Join(root, filepath.FromSlash(file)),
+				Original: filepath.Join(work, filepath.FromSlash(file)),
 				Pkg:      path.Dir(file),
 				Workers:  cfg.workers,
 			}, nil

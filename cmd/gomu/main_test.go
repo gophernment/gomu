@@ -374,3 +374,66 @@ func TestSyntaxErrorIsReportedNotSkipped(t *testing.T) {
 		t.Errorf("exit code = %d, want %d\n%s", code, exitError, stderr)
 	}
 }
+
+const fxDestructiveTest = `package fx
+
+import (
+	"os"
+	"testing"
+)
+
+func TestAdd(t *testing.T) {
+	_ = os.Remove("marker.txt") // runs in the package directory
+	if Add(2, 3) != 5 {
+		t.Fatal("bad")
+	}
+}
+`
+
+func TestMutantsCannotDamageTheRealTree(t *testing.T) {
+	t.Parallel()
+	needGo(t)
+
+	dir := fixture(t, map[string]string{
+		"go.mod":      "module example.com/fx\n\ngo 1.21\n",
+		"add.go":      "package fx\n\nfunc Add(a, b int) int { return a + b }\n",
+		"add_test.go": fxDestructiveTest,
+		"marker.txt":  "precious",
+	})
+
+	code, stdout, stderr := gomu(context.Background(), "-dir", dir, "-threshold", "100")
+	if code != exitOK {
+		t.Fatalf("exit code = %d\nstderr: %s\nstdout: %s", code, stderr, stdout)
+	}
+	got, err := os.ReadFile(filepath.Join(dir, "marker.txt"))
+	if err != nil || string(got) != "precious" {
+		t.Fatalf("the tests deleted a file in the real module: %q, %v", got, err)
+	}
+}
+
+// Not parallel: t.Setenv changes the process environment.
+func TestNoSandboxIsLeftBehind(t *testing.T) {
+	needGo(t)
+
+	dir := fixture(t, map[string]string{
+		"go.mod":      "module example.com/fx\n\ngo 1.21\n",
+		"add.go":      "package fx\n\nfunc Add(a, b int) int { return a + b }\n",
+		"add_test.go": fxAddTest[:strings.Index(fxAddTest, "func TestMax")],
+	})
+	tmp := t.TempDir()
+	t.Setenv("TMPDIR", tmp)
+
+	for _, args := range [][]string{{"-dir", dir}, {"-dir", dir, "../outside"}} {
+		gomu(context.Background(), args...) // success, then a usage error
+	}
+
+	entries, err := os.ReadDir(tmp)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, e := range entries {
+		if strings.HasPrefix(e.Name(), "gomu-") {
+			t.Errorf("left %s behind in the temp directory", e.Name())
+		}
+	}
+}
