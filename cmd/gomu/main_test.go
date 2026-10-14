@@ -437,3 +437,78 @@ func TestNoSandboxIsLeftBehind(t *testing.T) {
 		}
 	}
 }
+
+func TestReadModulePathSizeLimit(t *testing.T) {
+	t.Parallel()
+
+	const head = "module example.com/p\n// "
+	pad := func(total int) string { return head + strings.Repeat("x", total-len(head)) }
+
+	tests := []struct {
+		name    string
+		content string
+		wantErr string
+	}{
+		{"exactly at the limit", pad(maxGoMod), ""},
+		{"one byte over", pad(maxGoMod + 1), "too large"},
+		{"far over", pad(maxGoMod * 2), "too large"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			dir := fixture(t, map[string]string{"go.mod": tt.content})
+			got, err := readModulePath(dir)
+			if tt.wantErr == "" {
+				if err != nil || got != "example.com/p" {
+					t.Errorf("readModulePath() = %q, %v; want example.com/p", got, err)
+				}
+				return
+			}
+			if err == nil || !strings.Contains(err.Error(), tt.wantErr) {
+				t.Errorf("readModulePath() error = %v, want it to contain %q", err, tt.wantErr)
+			}
+		})
+	}
+}
+
+func TestStderrIsQuietUnlessSomethingWasSkipped(t *testing.T) {
+	t.Parallel()
+	needGo(t)
+
+	files := map[string]string{
+		"go.mod":      "module example.com/fx\n\ngo 1.21\n",
+		"add.go":      "package fx\n\nfunc Add(a, b int) int { return a + b }\n",
+		"add_test.go": fxAddTest[:strings.Index(fxAddTest, "func TestMax")],
+	}
+
+	t.Run("nothing skipped", func(t *testing.T) {
+		t.Parallel()
+
+		_, _, stderr := gomu(context.Background(), "-dir", fixture(t, files))
+		if stderr != "" {
+			t.Errorf("stderr = %q, want nothing", stderr)
+		}
+	})
+
+	t.Run("symbolic link skipped", func(t *testing.T) {
+		t.Parallel()
+
+		dir := fixture(t, files)
+		if err := os.Symlink("add.go", filepath.Join(dir, "link.go")); err != nil {
+			t.Skipf("symlinks not supported: %v", err)
+		}
+
+		code, stdout, stderr := gomu(context.Background(), "-dir", dir)
+		if code != exitOK {
+			t.Fatalf("exit code = %d\n%s", code, stderr)
+		}
+		if !strings.Contains(stderr, "1 symbolic links or special files were not copied") {
+			t.Errorf("stderr does not mention the skipped link: %q", stderr)
+		}
+		if !strings.Contains(stdout, "Mutation score: 100.0%") {
+			t.Errorf("stdout:\n%s", stdout)
+		}
+	})
+}

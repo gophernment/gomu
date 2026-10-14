@@ -209,9 +209,6 @@ func analyze(ctx context.Context, cfg config, stderr io.Writer) (app.Result, err
 // moduleRoot returns dir as an absolute, symlink-free path holding a go.mod.
 func moduleRoot(dir string) (string, error) {
 	abs, err := filepath.Abs(dir)
-	if err == nil {
-		abs, err = filepath.EvalSymlinks(abs)
-	}
 	if err != nil {
 		return "", fmt.Errorf("module directory: %w", unwrapPathError(err))
 	}
@@ -255,9 +252,7 @@ func modulePath(data []byte) (string, error) {
 		if !ok || rest == "" || (rest[0] != ' ' && rest[0] != '\t') {
 			continue
 		}
-		if i := strings.Index(rest, "//"); i >= 0 {
-			rest = rest[:i]
-		}
+		rest, _, _ = strings.Cut(rest, "//")
 		p := strings.TrimSpace(rest)
 		if len(p) >= 2 && (p[0] == '"' || p[0] == '`') {
 			unquoted, err := strconv.Unquote(p)
@@ -290,15 +285,16 @@ type baseline struct {
 
 func (b baseline) Run(ctx context.Context) (app.Coverage, time.Duration, error) {
 	dir, err := os.MkdirTemp("", "gomu-cover-*")
-	if err == nil {
-		dir, err = filepath.Abs(dir)
-	}
 	if err != nil {
-		return nil, 0, fmt.Errorf("create temp dir: %w", err)
+		return nil, 0, fmt.Errorf("create temp dir: %w", unwrapPathError(err))
 	}
 	defer os.RemoveAll(dir)
 
-	profile := filepath.Join(dir, "cover.out")
+	// The runner needs an absolute path, and TMPDIR may be relative.
+	profile, err := filepath.Abs(filepath.Join(dir, "cover.out"))
+	if err != nil {
+		return nil, 0, fmt.Errorf("resolve coverage profile path: %w", unwrapPathError(err))
+	}
 	took, err := b.runner.Baseline(ctx, profile)
 	if err != nil {
 		if errors.Is(err, gotest.ErrBaselineFailed) {

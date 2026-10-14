@@ -17,9 +17,14 @@ import (
 	"github.com/pallat/gomu/internal/mutant"
 )
 
-// grace is extra time on top of the test timeout for compiling and linking.
-// It is only a backstop; the test timeout itself is enforced by "go test".
-const grace = time.Minute
+const (
+	// defaultGrace is extra time on top of the test timeout for compiling and
+	// linking. It is only a backstop; "go test" enforces the test timeout.
+	defaultGrace = time.Minute
+	// defaultWaitDelay bounds how long to wait for a killed process's pipes to
+	// close. Without it, a child that outlives its parent would hang us.
+	defaultWaitDelay = 5 * time.Second
+)
 
 // Errors returned by the Runner.
 var (
@@ -44,12 +49,15 @@ var allowedEnv = map[string]bool{
 
 // Runner runs go test inside one module. It is safe for concurrent use.
 type Runner struct {
-	goBin   string
-	dir     string
-	timeout time.Duration
+	goBin     string
+	dir       string
+	timeout   time.Duration
+	grace     time.Duration
+	waitDelay time.Duration
 }
 
-// NewRunner returns a Runner for the module at dir. timeout is the per-mutant
+// NewRunner returns a Runner for the module at dir (pass a symlink-free path
+// if overlay keys are built from it). timeout is the per-mutant
 // limit for running the tests. It fails if dir is not a directory, timeout is
 // not positive, or no go tool is found on PATH.
 func NewRunner(dir string, timeout time.Duration) (*Runner, error) {
@@ -60,9 +68,6 @@ func NewRunner(dir string, timeout time.Duration) (*Runner, error) {
 		return nil, fmt.Errorf("%w: module dir is empty", ErrInvalidJob)
 	}
 	resolved, err := filepath.Abs(dir)
-	if err == nil {
-		resolved, err = filepath.EvalSymlinks(resolved)
-	}
 	if err != nil {
 		return nil, fmt.Errorf("gotest: module dir: %w", cause(err))
 	}
@@ -77,7 +82,7 @@ func NewRunner(dir string, timeout time.Duration) (*Runner, error) {
 	if err != nil {
 		return nil, fmt.Errorf("gotest: find go tool: %w", err)
 	}
-	return &Runner{goBin: goBin, dir: resolved, timeout: timeout}, nil
+	return &Runner{goBin: goBin, dir: resolved, timeout: timeout, grace: defaultGrace, waitDelay: defaultWaitDelay}, nil
 }
 
 // Job describes one mutant run.
@@ -118,7 +123,7 @@ func (r *Runner) Run(ctx context.Context, job Job) (mutant.Status, error) {
 		pkg,
 	}
 
-	res, err := r.execGo(ctx, r.timeout+grace, args)
+	res, err := r.execGo(ctx, r.timeout+r.grace, args)
 	switch {
 	case err != nil:
 		return mutant.Pending, err
@@ -180,7 +185,7 @@ func (r *Runner) execGo(ctx context.Context, limit time.Duration, args []string)
 	cmd.Env = filterEnv(os.Environ())
 	cmd.Stdout = w
 	cmd.Stderr = w
-	cmd.WaitDelay = 5 * time.Second
+	cmd.WaitDelay = r.waitDelay
 
 	err := cmd.Run()
 	w.flush()

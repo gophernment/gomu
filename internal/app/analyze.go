@@ -123,11 +123,9 @@ func (a Analyze) Run(ctx context.Context) (Result, error) {
 // result summarizes mutants. Any non-nil failure means the run did not pass.
 func (a Analyze) result(mutants []mutant.Mutant, failure error) Result {
 	s := mutant.Summarize(mutants)
-	evaluated := s.Killed + s.TimedOut + s.Survived
 
-	passed := failure == nil
-	if a.Threshold > 0 {
-		passed = passed && evaluated > 0 && s.Score() >= a.Threshold
-	}
+	// With nothing evaluated Score is 0, so any threshold above 0 fails: no
+	// evidence is not a pass. A threshold of 0 is always met.
+	passed := failure == nil && s.Score() >= a.Threshold
 	return Result{Mutants: mutants, Summary: s, Score: s.Score(), Passed: passed}
 }

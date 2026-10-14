@@ -303,3 +303,62 @@ func TestParseRealProfile(t *testing.T) {
 		t.Error("the body of Unused (8:2) should not be covered")
 	}
 }
+
+func TestParseAcceptsEdgeValues(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name    string
+		profile string
+		line    int
+		col     int
+		want    bool
+	}{
+		{"zero statements", "mode: set\nx/a.go:1.1,3.2 0 1\n", 2, 1, true},
+		{"zero-width range on one line", "mode: set\nx/a.go:3.5,3.5 1 1\n", 3, 5, false},
+		{"smallest range", "mode: set\nx/a.go:1.1,1.2 1 1\n", 1, 1, true},
+		{"column one is valid", "mode: set\nx/a.go:1.1,2.1 1 1\n", 1, 1, true},
+		{"huge but valid count", "mode: count\nx/a.go:1.1,3.2 1 9223372036854775807\n", 2, 1, true},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			p, err := cover.Parse(strings.NewReader(tt.profile))
+			if err != nil {
+				t.Fatalf("Parse() error = %v", err)
+			}
+			if got := p.Covered("x/a.go", tt.line, tt.col); got != tt.want {
+				t.Errorf("Covered(%d,%d) = %v, want %v", tt.line, tt.col, got, tt.want)
+			}
+		})
+	}
+}
+
+// Input of exactly MaxSize bytes is allowed; only more than that is too large.
+func TestParseAcceptsInputOfExactlyMaxSize(t *testing.T) {
+	t.Parallel()
+
+	const head = "mode: set\n"
+	blank := strings.Repeat(" ", 900_000) + "\n"
+
+	var sb strings.Builder
+	sb.WriteString(head)
+	for sb.Len()+len(blank) <= cover.MaxSize {
+		sb.WriteString(blank)
+	}
+	sb.WriteString(strings.Repeat(" ", cover.MaxSize-sb.Len())) // last line, no newline
+	if sb.Len() != cover.MaxSize {
+		t.Fatalf("test input is %d bytes, want exactly %d", sb.Len(), cover.MaxSize)
+	}
+
+	if _, err := cover.Parse(strings.NewReader(sb.String())); err != nil {
+		t.Errorf("Parse() error = %v, want nil at exactly MaxSize", err)
+	}
+
+	sb.WriteString(" ")
+	if _, err := cover.Parse(strings.NewReader(sb.String())); !errors.Is(err, cover.ErrTooLarge) {
+		t.Errorf("Parse() with one byte more: error = %v, want %v", err, cover.ErrTooLarge)
+	}
+}

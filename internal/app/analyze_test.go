@@ -411,3 +411,50 @@ func TestAnalyzeRejectsBadSetup(t *testing.T) {
 		})
 	}
 }
+
+func TestAnalyzeFailureNeverPassesEvenWithAGoodPartialScore(t *testing.T) {
+	t.Parallel()
+
+	a := newAnalysis(map[string]int{"x.go": 2, "y.go": 2}, "x.go", "y.go")
+	// x.go: one killed, one survived = 50%, which meets the threshold.
+	a.worlds["x.go"].runnerFn = func(_ context.Context, src string) (mutant.Status, error) {
+		if src == "mut:0" {
+			return mutant.Killed, nil
+		}
+		return mutant.Survived, nil
+	}
+	a.worlds["y.go"].runnerFn = func(context.Context, string) (mutant.Status, error) {
+		return mutant.Pending, errors.New("boom")
+	}
+
+	res, err := a.analyze(50).Run(context.Background())
+	if err == nil {
+		t.Fatal("Run() returned nil error")
+	}
+	if res.Score != 50 {
+		t.Fatalf("partial Score = %v, want 50 so the threshold would be met", res.Score)
+	}
+	if res.Passed {
+		t.Error("a failed analysis passed because its partial score met the threshold")
+	}
+}
+
+func TestAnalyzeThresholdCountsKilledAndTimedOutTogether(t *testing.T) {
+	t.Parallel()
+
+	a := newAnalysis(map[string]int{"x.go": 2}, "x.go")
+	a.worlds["x.go"].runnerFn = func(_ context.Context, src string) (mutant.Status, error) {
+		if src == "mut:0" {
+			return mutant.Killed, nil
+		}
+		return mutant.TimedOut, nil
+	}
+
+	res, err := a.analyze(100).Run(context.Background())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !res.Passed || res.Score != 100 {
+		t.Errorf("Passed=%v Score=%v, want a pass at 100", res.Passed, res.Score)
+	}
+}

@@ -186,12 +186,15 @@ func parsePos(s string) (line, col int, ok bool) {
 	if !found {
 		return 0, 0, false
 	}
-	line, err1 := strconv.Atoi(l)
-	col, err2 := strconv.Atoi(c)
-	if err1 != nil || err2 != nil || line < 1 || col < 1 {
-		return 0, 0, false
-	}
-	return line, col, true
+	line, okLine := positive(l)
+	col, okCol := positive(c)
+	return line, col, okLine && okCol
+}
+
+// positive parses a decimal integer that must be at least 1.
+func positive(s string) (int, bool) {
+	n, err := strconv.Atoi(s)
+	return n, err == nil && n >= 1
 }
 
 // capReader passes through at most left bytes and then reports EOF, recording
@@ -216,9 +219,7 @@ func (c *capReader) Read(p []byte) (int, error) {
 		}
 		return 0, err
 	}
-	if len(p) > c.left {
-		p = p[:c.left]
-	}
+	p = p[:min(len(p), c.left)]
 	n, err := c.r.Read(p)
 	c.left -= n
 	return n, err

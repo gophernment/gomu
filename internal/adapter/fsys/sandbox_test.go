@@ -10,6 +10,7 @@ import (
 	"slices"
 	"strings"
 	"testing"
+	"testing/fstest"
 )
 
 // tree writes files (slash-separated name -> content) under a new directory.
@@ -422,5 +423,103 @@ func TestSandboxUnreadableFile(t *testing.T) {
 	}
 	if strings.Contains(err.Error(), src) {
 		t.Errorf("error leaks the source path: %v", err)
+	}
+}
+
+// Not parallel: t.Setenv and t.Chdir change process-wide state.
+func TestSandboxDirIsAbsoluteWithRelativeTmpdir(t *testing.T) {
+	src := tree(t, map[string]string{"a.go": "package p\n"})
+
+	t.Chdir(t.TempDir())
+	if err := os.Mkdir("tmp", 0o700); err != nil {
+		t.Fatal(err)
+	}
+	t.Setenv("TMPDIR", "tmp")
+
+	s, err := NewSandbox(context.Background(), src)
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = s.Close() })
+
+	if !filepath.IsAbs(s.Dir()) {
+		t.Errorf("Dir() = %q is not absolute", s.Dir())
+	}
+	if _, err := os.Stat(filepath.Join(s.Dir(), "a.go")); err != nil {
+		t.Errorf("copy missing: %v", err)
+	}
+}
+
+// liarFS reports a smaller size for one file than it really has, like a file
+// that grows between Stat and read.
+type liarFS struct {
+	fs.FS
+	name    string
+	claimed int64
+}
+
+func (l liarFS) ReadDir(dir string) ([]fs.DirEntry, error) {
+	entries, err := fs.ReadDir(l.FS, dir)
+	for i, e := range entries {
+		if e.Name() == l.name {
+			entries[i] = liarEntry{DirEntry: e, claimed: l.claimed}
+		}
+	}
+	return entries, err
+}
+
+type liarEntry struct {
+	fs.DirEntry
+	claimed int64
+}
+
+func (e liarEntry) Info() (fs.FileInfo, error) {
+	info, err := e.DirEntry.Info()
+	return liarInfo{FileInfo: info, claimed: e.claimed}, err
+}
+
+type liarInfo struct {
+	fs.FileInfo
+	claimed int64
+}
+
+func (i liarInfo) Size() int64 { return i.claimed }
+
+func TestSandboxBoundsFilesThatGrowWhileCopying(t *testing.T) {
+	t.Parallel()
+
+	// a.go is honest (1 byte). b.go claims 1 byte but holds 6, so the copy
+	// would reach 7 bytes against a limit of 6.
+	files := fstest.MapFS{
+		"a.go": {Data: []byte("1")},
+		"b.go": {Data: []byte("123456")},
+	}
+
+	tests := []struct {
+		name    string
+		limit   int64
+		wantErr bool
+	}{
+		{"the file outgrew the remaining budget", 6, true},
+		{"enough room for the real size", 7, false},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			s := &Sandbox{dir: filepath.Join(t.TempDir(), sandboxPrefix+"x")}
+			if err := os.Mkdir(s.dir, 0o700); err != nil {
+				t.Fatal(err)
+			}
+
+			err := s.copyTree(context.Background(), liarFS{FS: files, name: "b.go", claimed: 1}, limits{files: 10, bytes: tt.limit})
+			if tt.wantErr != errors.Is(err, ErrTooLarge) {
+				t.Fatalf("error = %v, want ErrTooLarge: %v", err, tt.wantErr)
+			}
+			if !tt.wantErr && err != nil {
+				t.Fatal(err)
+			}
+		})
 	}
 }

@@ -542,3 +542,23 @@ func TestRunIsRepeatable(t *testing.T) {
 		}
 	}
 }
+
+func TestRunReportsCancellationEvenWhenAllWorkIsDone(t *testing.T) {
+	t.Parallel()
+
+	w := newWorld(1)
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	w.runnerFn = func(_ context.Context, src string) (mutant.Status, error) {
+		cancel() // the only job finishes normally, but the caller has given up
+		return statusFor(src), nil
+	}
+
+	got, err := w.execute(1).Run(ctx)
+	if !errors.Is(err, context.Canceled) {
+		t.Errorf("Run() error = %v, want %v", err, context.Canceled)
+	}
+	if len(got) != 1 || got[0].Status != wantStatus(0) {
+		t.Errorf("the finished result was lost: %+v", got)
+	}
+}

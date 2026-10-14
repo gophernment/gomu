@@ -67,8 +67,11 @@ func newSandbox(ctx context.Context, src string, lim limits) (*Sandbox, error) {
 
 	dir, err := os.MkdirTemp("", sandboxPrefix+"*")
 	if err == nil {
-		// Resolved, because the go tool compares real paths.
-		dir, err = filepath.EvalSymlinks(dir)
+		// Absolute (TMPDIR may be relative) and symlink-free, because the go
+		// tool compares real paths.
+		if dir, err = filepath.Abs(dir); err == nil {
+			dir, err = filepath.EvalSymlinks(dir)
+		}
 	}
 	if err != nil {
 		return nil, fmt.Errorf("fsys: create sandbox: %w", cause(err))
@@ -147,6 +150,7 @@ func (s *Sandbox) copyTree(ctx context.Context, src fs.FS, lim limits) error {
 			return fmt.Errorf("fsys: copy %s: %w", p, cause(err))
 		}
 		files++
+		before := bytes
 		bytes += info.Size()
 		if files > lim.files || bytes > lim.bytes {
 			return ErrTooLarge
@@ -155,7 +159,7 @@ func (s *Sandbox) copyTree(ctx context.Context, src fs.FS, lim limits) error {
 		// Keep the owner's permission bits (notably the executable bit); the
 		// copy is private, so group and other get nothing.
 		perm := info.Mode().Perm()&0o700 | 0o600
-		return copyFile(src, p, dst, perm, lim.bytes-(bytes-info.Size()))
+		return copyFile(src, p, dst, perm, lim.bytes-before)
 	})
 }
 

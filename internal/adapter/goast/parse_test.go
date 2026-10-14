@@ -146,6 +146,8 @@ func TestParseRejectsPaths(t *testing.T) {
 		path    string
 		wantErr error
 	}{
+		{"the parent directory itself", "..", goast.ErrOutsideRoot},
+		{"the parent directory by absolute path", base, goast.ErrOutsideRoot},
 		{"parent traversal", filepath.Join("..", "outside.go"), goast.ErrOutsideRoot},
 		{"deep parent traversal", filepath.Join("a", "..", "..", "outside.go"), goast.ErrOutsideRoot},
 		{"absolute path outside root", outside, goast.ErrOutsideRoot},
@@ -200,8 +202,10 @@ func TestParseAcceptsFileAtLimit(t *testing.T) {
 	t.Parallel()
 
 	root := t.TempDir()
-	head := "package p\n//"
-	writeFile(t, root, "edge.go", head+strings.Repeat("a", goast.MaxFileSize-len(head)))
+	// The closing brace is the very last byte: reading one byte short would
+	// leave a syntax error.
+	const head, tail = "package p\nfunc f() {", "}"
+	writeFile(t, root, "edge.go", head+strings.Repeat(" ", goast.MaxFileSize-len(head)-len(tail))+tail)
 
 	if _, err := goast.Parse(root, "edge.go"); err != nil {
 		t.Errorf("Parse() error = %v, want nil at exactly MaxFileSize", err)
