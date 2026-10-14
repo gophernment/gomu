@@ -18,7 +18,7 @@ small changes (mutants) to your code, such as `+` to `-` or `<` to `<=`, then ru
 | `survived`    | all tests passed, so your tests missed the change    |
 | `timed out`   | tests hung or looped, counted as caught              |
 | `not covered` | no test runs that line, not scored                   |
-| `not viable`  | the mutant does not compile, not scored              |
+| `not viable`  | the mutant does not compile or load, not scored      |
 
 Score = (killed + timed out) / (killed + timed out + survived).
 
@@ -81,6 +81,10 @@ Mutation operators:
 | `conditional` | `< <= > >= == !=`, swapped in pairs                                                     |
 | `logical`     | `&&` and `\|\|` swapped                                                                   |
 | `deletion`    | a statement that is a bare call (`cache.Invalidate(key)`) is removed; `panic` is kept   |
+| `return`      | a returned value is replaced: `bool` negated, `error`/pointer/slice/map/... becomes `nil`, numbers `0`, strings `""` |
+
+`return` looks only at the declared result types, because Gomu has no type information: it skips arrays, structs,
+named types, naked returns, `return f()` and values that are already `nil`, `0` or `""`.
 
 A `deletion` mutant that leaves an unused variable or import behind does not compile and is reported as `not viable`.
 A removed `Unlock` or `Done` can hang the tests; the timeout catches it and counts it as detected.
@@ -110,6 +114,8 @@ Known limits:
 - Without type information, `+` on two non-literal strings produces a mutant that fails to compile; it is
   reported as `not viable` and does not affect the score.
 - Files are tested one after another; only mutants within a file run in parallel.
+- Workers share one copy of the module. A test that writes into its own package directory can disturb later
+  mutants; those that then fail to load are reported as `not viable` rather than as kills.
 - Mutants are not de-duplicated or ranked, and there is no incremental mode yet.
 
 ## Architecture

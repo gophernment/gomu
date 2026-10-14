@@ -233,7 +233,7 @@ func (c *capReader) Read(p []byte) (int, error) {
 		n, err := c.r.Read(one[:])
 		if n > 0 {
 			c.exceeded = true
-			return 0, io.EOF
+			err = io.EOF
 		}
 		return 0, err
 	}

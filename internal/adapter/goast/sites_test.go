@@ -261,3 +261,46 @@ func init() { fmt.Println(1 / 2) }
 		t.Errorf("Sites() =\n%s\nwant\n%s", strings.Join(got, "\n"), strings.Join(want, "\n"))
 	}
 }
+
+// funcMutator reports one mutation per function declaration or literal, to
+// prove Sites offers whole functions to mutators, each exactly once.
+type funcMutator struct{}
+
+func (funcMutator) Name() string { return "func" }
+
+func (funcMutator) Mutations(n ast.Node) []mutator.Mutation {
+	var body *ast.BlockStmt
+	switch fn := n.(type) {
+	case *ast.FuncDecl:
+		body = fn.Body
+	case *ast.FuncLit:
+		body = fn.Body
+	default:
+		return nil
+	}
+	return []mutator.Mutation{{Pos: body.Lbrace, Original: "{", Replacement: "{}", Apply: func() {}, Revert: func() {}}}
+}
+
+func TestSitesOffersEachFunctionOnce(t *testing.T) {
+	t.Parallel()
+
+	const src = `package p
+
+var lit = func() { _ = func() {} }
+
+type T struct{}
+
+func (T) m() { _ = func() { _ = func() {} } }
+
+func decl() {}
+
+func noBody()
+`
+	f := parseSrc(t, src)
+
+	got := describe(f.Sites([]mutator.Mutator{funcMutator{}}))
+	// lit and its nested literal, the method and its two nested literals, decl; not the body-less noBody.
+	if len(got) != 6 {
+		t.Errorf("got %d sites, want 6: %v", len(got), got)
+	}
+}

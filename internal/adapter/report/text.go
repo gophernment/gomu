@@ -96,10 +96,6 @@ func compare(a, b mutant.Mutant) int {
 // would (\n, \x1b, \u202e). Printable text, including non-ASCII letters, is
 // kept as is.
 func clean(s string) string {
-	if !strings.ContainsFunc(s, func(r rune) bool { return !unicode.IsPrint(r) }) {
-		return s
-	}
-
 	var b strings.Builder
 	for _, r := range s {
 		if unicode.IsPrint(r) {

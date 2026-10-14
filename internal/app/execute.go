@@ -207,8 +207,8 @@ func (e Execute) work(ctx context.Context, file File, mutants []mutant.Mutant, j
 	defer func() { _ = overlay.Close() }()
 
 	for i := range jobs {
-		if err := ctx.Err(); err != nil {
-			return err
+		if ctx.Err() != nil {
+			break // Run reports why the context ended
 		}
 		status, err := e.evaluate(ctx, file, sites[i], overlay)
 		if err != nil {

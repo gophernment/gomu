@@ -99,16 +99,24 @@ type Job struct {
 //   - Survived: the tests passed.
 //   - Killed: the tests failed.
 //   - TimedOut: the tests exceeded the runner's timeout.
-//   - NotViable: the mutant did not compile.
+//   - NotViable: the mutant did not compile, or its package could not be
+//     loaded. The second happens when an earlier mutant made the tests leave
+//     a broken file in the package directory of the shared copy; the verdict
+//     is then "could not be evaluated", never a false kill.
 //
 // It returns the context's error if ctx ends first, and ErrUnexpected when
-// go test fails without a test result.
+// go test fails without a test result or the package directory is missing.
 func (r *Runner) Run(ctx context.Context, job Job) (mutant.Status, error) {
 	if !fs.ValidPath(job.Pkg) {
 		return mutant.Pending, fmt.Errorf("%w: bad package directory", ErrInvalidJob)
 	}
 	if !filepath.IsAbs(job.Overlay) {
 		return mutant.Pending, fmt.Errorf("%w: overlay path must be absolute", ErrInvalidJob)
+	}
+
+	// Without this a typo and a polluted copy would both look like a setup failure.
+	if fi, err := os.Stat(filepath.Join(r.dir, filepath.FromSlash(job.Pkg))); err != nil || !fi.IsDir() {
+		return mutant.Pending, fmt.Errorf("%w: package directory not found", ErrUnexpected)
 	}
 
 	// "./" keeps a directory such as "-x" from being read as a flag.
@@ -133,9 +141,7 @@ func (r *Runner) Run(ctx context.Context, job Job) (mutant.Status, error) {
 		return mutant.Survived, nil
 	case res.timedOut:
 		return mutant.TimedOut, nil
-	case res.setupFailed: // package loading problem, not a verdict on the mutant
-		return mutant.Pending, fmt.Errorf("%w: package setup failed", ErrUnexpected)
-	case res.buildFailed:
+	case res.setupFailed, res.buildFailed: // no verdict on the tests either way
 		return mutant.NotViable, nil
 	case res.sawFail:
 		return mutant.Killed, nil

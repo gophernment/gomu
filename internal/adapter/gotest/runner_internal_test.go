@@ -126,3 +126,24 @@ func TestUnterminatedLastLineIsStillExamined(t *testing.T) {
 		t.Errorf("Run() = %v, want %v", got, mutant.Killed)
 	}
 }
+
+// A package that cannot be loaded says nothing about the tests: it must not
+// stop the run, and it must not count as a kill either.
+func TestSetupFailureIsNotViable(t *testing.T) {
+	t.Parallel()
+
+	p := filepath.Join(t.TempDir(), "go")
+	script := "#!/bin/sh\nprintf 'FAIL\\texample.com/p [setup failed]\\nFAIL\\n'\nexit 1\n"
+	if err := os.WriteFile(p, []byte(script), 0o700); err != nil {
+		t.Fatal(err)
+	}
+	r := &Runner{goBin: p, dir: t.TempDir(), timeout: time.Minute, grace: time.Second, waitDelay: time.Second}
+
+	got, err := r.Run(context.Background(), Job{Pkg: ".", Overlay: "/overlay.json"})
+	if err != nil {
+		t.Fatalf("Run() error = %v", err)
+	}
+	if got != mutant.NotViable {
+		t.Errorf("Run() = %v, want %v", got, mutant.NotViable)
+	}
+}

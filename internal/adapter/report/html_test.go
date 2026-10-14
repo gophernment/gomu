@@ -78,6 +78,11 @@ func TestHTMLVerboseListsEverythingGroupedByFile(t *testing.T) {
 			t.Errorf("status %q missing:\n%s", want, got)
 		}
 	}
+	for _, class := range []string{"tag killed", "tag survived", "tag timed-out", "tag not-covered", "tag not-viable", "tag pending"} {
+		if !strings.Contains(got, `class="`+class+`"`) {
+			t.Errorf("style class %q missing:\n%s", class, got)
+		}
+	}
 	if n := strings.Count(got, "<h2"); n != 2 {
 		t.Errorf("got %d file headings, want 2 (one per file)", n)
 	}

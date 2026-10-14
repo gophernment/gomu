@@ -21,9 +21,6 @@ import (
 // The zero value is ready to use.
 type Deletion struct{}
 
-// maxCallName caps how much of the called expression a report shows.
-const maxCallName = 60
-
 // Name implements Mutator.
 func (Deletion) Name() string { return "deletion" }
 
@@ -84,9 +81,16 @@ func isPanic(call *ast.CallExpr) bool {
 
 // callName describes a call for a report without printing its arguments.
 func callName(call *ast.CallExpr) string {
-	name := types.ExprString(call.Fun)
-	if utf8.RuneCountInString(name) > maxCallName {
-		name = string([]rune(name)[:maxCallName]) + "…"
+	return truncate(types.ExprString(call.Fun)) + "(...)"
+}
+
+// maxShown caps how much of a source expression a report shows.
+const maxShown = 60
+
+// truncate shortens s to maxShown runes, marking the cut with an ellipsis.
+func truncate(s string) string {
+	if utf8.RuneCountInString(s) <= maxShown {
+		return s
 	}
-	return name + "(...)"
+	return string([]rune(s)[:maxShown]) + "…"
 }

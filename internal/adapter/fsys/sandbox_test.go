@@ -225,6 +225,12 @@ func TestSandboxIsIsolatedFromTheSource(t *testing.T) {
 	src := tree(t, map[string]string{"a.go": "package p\n", "pkg/b.go": "package b\n"})
 	s := newTestSandbox(t, src)
 
+	// Never write below an empty or relative Dir(): that is the package directory
+	// of whoever runs this test, which may be a copy being mutation tested.
+	if !filepath.IsAbs(s.Dir()) {
+		t.Fatalf("Dir() = %q is not absolute", s.Dir())
+	}
+
 	// A mutant doing its worst inside the sandbox.
 	for _, name := range []string{"a.go", "pkg"} {
 		if err := os.RemoveAll(filepath.Join(s.Dir(), name)); err != nil {

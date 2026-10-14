@@ -160,7 +160,7 @@ func Neg(a int) int { return a - 1 }
 import "testing"
 
 func TestNeg(t *testing.T) {
-	if Neg(1) != 0 {
+	if Neg(5) != 4 {
 		t.Fatal("bad")
 	}
 }
@@ -232,8 +232,8 @@ func TestEndToEnd(t *testing.T) {
 			"add.go:",
 			"conditional",
 			"> -> >=",
-			"Mutation score: 66.7% (2 of 3 evaluated mutants detected)",
-			"Killed 2 | Survived 1 | Timed out 0 | Not covered 1 | Not viable 0",
+			"Mutation score: 83.3% (5 of 6 evaluated mutants detected)",
+			"Killed 5 | Survived 1 | Timed out 0 | Not covered 3 | Not viable 0",
 		} {
 			if !strings.Contains(stdout, want) {
 				t.Errorf("stdout does not contain %q:\n%s", want, stdout)
@@ -268,12 +268,12 @@ func TestEndToEnd(t *testing.T) {
 	})
 
 	t.Run("threshold", func(t *testing.T) {
-		if code, _, stderr := gomu(ctx, "-dir", dir, "-threshold", "66"); code != exitOK {
-			t.Errorf("score 66.7 against 66: exit code = %d, want %d\n%s", code, exitOK, stderr)
+		if code, _, stderr := gomu(ctx, "-dir", dir, "-threshold", "83"); code != exitOK {
+			t.Errorf("score 83.3 against 83: exit code = %d, want %d\n%s", code, exitOK, stderr)
 		}
-		if code, stdout, _ := gomu(ctx, "-dir", dir, "-threshold", "67"); code != exitBelowThreshold {
-			t.Errorf("score 66.7 against 67: exit code = %d, want %d", code, exitBelowThreshold)
-		} else if !strings.Contains(stdout, "Mutation score: 66.7%") {
+		if code, stdout, _ := gomu(ctx, "-dir", dir, "-threshold", "84"); code != exitBelowThreshold {
+			t.Errorf("score 83.3 against 84: exit code = %d, want %d", code, exitBelowThreshold)
+		} else if !strings.Contains(stdout, "Mutation score: 83.3%") {
 			t.Errorf("the report must still be printed when the threshold fails:\n%s", stdout)
 		}
 	})
@@ -286,14 +286,14 @@ func TestEndToEnd(t *testing.T) {
 		if strings.Contains(stdout, "add.go") {
 			t.Errorf("pattern sub also mutated add.go:\n%s", stdout)
 		}
-		if !strings.Contains(stdout, "Mutation score: 100.0% (1 of 1") {
+		if !strings.Contains(stdout, "Mutation score: 100.0% (2 of 2") {
 			t.Errorf("unexpected score for sub only:\n%s", stdout)
 		}
 	})
 
 	t.Run("a single file", func(t *testing.T) {
 		code, stdout, _ := gomu(ctx, "-dir", dir, "add.go")
-		if code != exitOK || !strings.Contains(stdout, "Killed 1 | Survived 1 | Timed out 0 | Not covered 1") {
+		if code != exitOK || !strings.Contains(stdout, "Killed 3 | Survived 1 | Timed out 0 | Not covered 3") {
 			t.Errorf("code=%d stdout:\n%s", code, stdout)
 		}
 	})
@@ -579,14 +579,14 @@ func TestJSONFormat(t *testing.T) {
 			t.Fatalf("exit code = %d\n%s", code, stderr)
 		}
 		d := decode(t, stdout)
-		if d.Score == nil || *d.Score != 50 || d.Evaluated != 2 {
-			t.Errorf("score=%v evaluated=%d, want 50 and 2", d.Score, d.Evaluated)
+		if d.Score == nil || *d.Score != 75 || d.Evaluated != 4 {
+			t.Errorf("score=%v evaluated=%d, want 75 and 4", d.Score, d.Evaluated)
 		}
 		if len(d.Mutants) != 1 || d.Mutants[0].Status != "survived" || d.Mutants[0].File != "add.go" ||
 			d.Mutants[0].Operator != "conditional" || d.Mutants[0].Original != ">" || d.Mutants[0].Replacement != ">=" {
 			t.Errorf("mutants = %+v, want the one survivor in add.go", d.Mutants)
 		}
-		if d.Summary["killed"] != 1 || d.Summary["survived"] != 1 || d.Summary["notCovered"] != 1 {
+		if d.Summary["killed"] != 3 || d.Summary["survived"] != 1 || d.Summary["notCovered"] != 3 {
 			t.Errorf("summary = %v", d.Summary)
 		}
 		// Notes go to stderr so stdout stays a single JSON document.
@@ -597,8 +597,8 @@ func TestJSONFormat(t *testing.T) {
 
 	t.Run("verbose", func(t *testing.T) {
 		_, stdout, _ := gomu(context.Background(), "-dir", dir, "-format", "json", "-v")
-		if d := decode(t, stdout); len(d.Mutants) != 3 {
-			t.Errorf("got %d mutants, want all 3", len(d.Mutants))
+		if d := decode(t, stdout); len(d.Mutants) != 7 {
+			t.Errorf("got %d mutants, want all 7", len(d.Mutants))
 		}
 	})
 

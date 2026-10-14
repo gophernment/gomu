@@ -3,11 +3,13 @@ package cover_test
 import (
 	"bufio"
 	"errors"
+	"io"
 	"os"
 	"os/exec"
 	"path/filepath"
 	"strings"
 	"testing"
+	"testing/iotest"
 
 	"github.com/pallat/gomu/internal/adapter/cover"
 )
@@ -419,5 +421,28 @@ func TestUnexecuted(t *testing.T) {
 	var nilProfile *cover.Profile
 	if nilProfile.Unexecuted("x/a.go", 3, 1) {
 		t.Error("Unexecuted() on a nil Profile = true")
+	}
+}
+
+// A read error that arrives exactly at the size limit is still an error, not a
+// silent end of input.
+func TestParseReportsReadErrorAtMaxSize(t *testing.T) {
+	t.Parallel()
+
+	const head = "mode: set\n"
+	blank := strings.Repeat(" ", 900_000) + "\n"
+
+	var sb strings.Builder
+	sb.WriteString(head)
+	for sb.Len()+len(blank) <= cover.MaxSize {
+		sb.WriteString(blank)
+	}
+	sb.WriteString(strings.Repeat(" ", cover.MaxSize-sb.Len()))
+
+	boom := errors.New("disk on fire")
+	r := io.MultiReader(strings.NewReader(sb.String()), iotest.ErrReader(boom))
+
+	if _, err := cover.Parse(r); !errors.Is(err, boom) {
+		t.Errorf("Parse() error = %v, want %v", err, boom)
 	}
 }

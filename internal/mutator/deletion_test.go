@@ -1,9 +1,7 @@
 package mutator_test
 
 import (
-	"bytes"
 	"go/ast"
-	"go/format"
 	"go/parser"
 	"go/token"
 	"slices"
@@ -13,45 +11,9 @@ import (
 	"github.com/pallat/gomu/internal/mutator"
 )
 
-// deleteEach parses a Go file, applies every Deletion mutation one at a time
-// and returns the whole file after each, with whitespace collapsed. It fails
-// the test if Revert does not restore the file or a result does not parse.
-func deleteEach(t *testing.T, src string) (results []string, muts []mutator.Mutation) {
+func deleteEach(t *testing.T, src string) ([]string, []mutator.Mutation) {
 	t.Helper()
-
-	fset := token.NewFileSet()
-	file, err := parser.ParseFile(fset, "p.go", src, 0)
-	if err != nil {
-		t.Fatalf("ParseFile: %v", err)
-	}
-	print := func() string {
-		var buf bytes.Buffer
-		if err := format.Node(&buf, fset, file); err != nil {
-			t.Fatalf("format: %v", err)
-		}
-		return buf.String()
-	}
-	before := print()
-
-	results = []string{}
-	ast.Inspect(file, func(n ast.Node) bool {
-		for _, mu := range (mutator.Deletion{}).Mutations(n) {
-			mu.Apply()
-			out := print()
-			if _, err := parser.ParseFile(token.NewFileSet(), "p.go", out, 0); err != nil {
-				t.Fatalf("mutant does not parse: %v\n%s", err, out)
-			}
-			results = append(results, strings.Join(strings.Fields(out), " "))
-			mu.Revert()
-
-			if after := print(); after != before {
-				t.Fatalf("Revert did not restore the file:\n%s\nwant\n%s", after, before)
-			}
-			muts = append(muts, mu)
-		}
-		return true
-	})
-	return results, muts
+	return mutateFile(t, mutator.Deletion{}, src)
 }
 
 func TestDeletionRemovesBareCalls(t *testing.T) {

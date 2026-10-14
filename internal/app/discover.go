@@ -67,10 +67,11 @@ func (d Discover) Run(ctx context.Context) ([]string, error) {
 }
 
 func (d Discover) collect(ctx context.Context, pattern string, found map[string]struct{}) error {
-	base, recursive, err := parsePattern(pattern)
+	base, err := parsePattern(pattern)
 	if err != nil {
 		return err
 	}
+	recursive := isRecursive(pattern)
 	if err := d.rejectSymlinks(base); err != nil {
 		return err
 	}
@@ -133,7 +134,7 @@ func (d Discover) rejectSymlinks(base string) error {
 		prefix := strings.Join(parts[:i+1], "/")
 		info, err := fs.Lstat(d.FS, prefix)
 		if err != nil {
-			return err
+			return nil // collect reports a missing path with fs.Stat
 		}
 		if info.Mode()&fs.ModeSymlink != 0 {
 			return fmt.Errorf("%w: %s", ErrSymlink, prefix)
@@ -142,11 +143,15 @@ func (d Discover) rejectSymlinks(base string) error {
 	return nil
 }
 
-// parsePattern turns a pattern into a cleaned, root-relative path and whether
-// it asks for a recursive walk.
-func parsePattern(pattern string) (base string, recursive bool, err error) {
-	bad := func(why string) (string, bool, error) {
-		return "", false, fmt.Errorf("%w: %s", ErrInvalidPattern, why)
+// isRecursive reports whether pattern asks for a directory and everything below it.
+func isRecursive(pattern string) bool {
+	return pattern == "..." || strings.HasSuffix(pattern, "/...")
+}
+
+// parsePattern turns a pattern into a cleaned, root-relative path.
+func parsePattern(pattern string) (string, error) {
+	bad := func(why string) (string, error) {
+		return "", fmt.Errorf("%w: %s", ErrInvalidPattern, why)
 	}
 
 	switch {
@@ -158,9 +163,8 @@ func parsePattern(pattern string) (base string, recursive bool, err error) {
 		return bad("use / as the separator")
 	}
 
-	base = pattern
-	if base == "..." || strings.HasSuffix(base, "/...") {
-		recursive = true
+	base := pattern
+	if isRecursive(base) {
 		base = strings.TrimSuffix(base, "...")
 	}
 	if base == "" {
@@ -171,7 +175,7 @@ func parsePattern(pattern string) (base string, recursive bool, err error) {
 	if !fs.ValidPath(base) {
 		return bad("outside the root")
 	}
-	return base, recursive, nil
+	return base, nil
 }
 
 func isSource(name string) bool {
