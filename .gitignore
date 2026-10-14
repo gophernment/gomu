@@ -1,1 +1,10 @@
 CLAUDE.md
+
+# build and test output
+/gomu
+*.test
+*.out
+
+# reports
+gomu.html
+gomu.json

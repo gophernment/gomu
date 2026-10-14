@@ -130,8 +130,6 @@ go test -race -cover ./...
 go run ./cmd/gomu ./...      # Gomu on itself
 ```
 
-Project conventions for contributors and AI assistants are in [`CLAUDE.md`](CLAUDE.md).
-
 ## License
 
 [Apache-2.0](LICENSE).
