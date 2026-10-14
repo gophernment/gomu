@@ -62,6 +62,7 @@ type config struct {
 	threshold float64
 	workers   int
 	verbose   bool
+	format    string
 }
 
 func parseArgs(args []string, stderr io.Writer) (config, error) {
@@ -73,6 +74,7 @@ func parseArgs(args []string, stderr io.Writer) (config, error) {
 	fl.Float64Var(&cfg.threshold, "threshold", 0, "minimum mutation score in `percent` (0-100); exit 1 below it. 0 disables")
 	fl.IntVar(&cfg.workers, "workers", 0, "parallel test runs per file; 0 means GOMAXPROCS")
 	fl.BoolVar(&cfg.verbose, "v", false, "list every mutant, not only the survivors")
+	fl.StringVar(&cfg.format, "format", "text", "report `format` on stdout: text or json")
 	fl.Usage = func() {
 		fmt.Fprint(stderr, `usage: gomu [flags] [pattern ...]
 
@@ -107,6 +109,9 @@ flags:
 	if cfg.workers < 0 {
 		return config{}, errors.New("-workers must not be negative")
 	}
+	if cfg.format != "text" && cfg.format != "json" {
+		return config{}, errors.New("-format must be text or json")
+	}
 	return cfg, nil
 }
 
@@ -129,7 +134,7 @@ func run(ctx context.Context, args []string, stdout, stderr io.Writer) int {
 		return exitError
 	}
 
-	if err := (report.Text{Verbose: cfg.verbose}).Write(stdout, res.Mutants); err != nil {
+	if err := reporter(cfg).Write(stdout, res.Mutants); err != nil {
 		fmt.Fprintln(stderr, "gomu:", err)
 		return exitError
 	}
@@ -137,6 +142,16 @@ func run(ctx context.Context, args []string, stdout, stderr io.Writer) int {
 		return exitBelowThreshold
 	}
 	return exitOK
+}
+
+// reporter picks the report writer for cfg.format, which parseArgs validated.
+func reporter(cfg config) interface {
+	Write(io.Writer, []mutant.Mutant) error
+} {
+	if cfg.format == "json" {
+		return report.JSON{Verbose: cfg.verbose}
+	}
+	return report.Text{Verbose: cfg.verbose}
 }
 
 // analyze wires the adapters into the Analyze context and runs it.

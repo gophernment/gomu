@@ -28,6 +28,7 @@ gomu internal/...             # a subtree
 gomu pkg/a.go pkg/b.go        # single files
 gomu -threshold 80 ./...      # exit 1 below 80%
 gomu -v -workers 4 ./...      # list every mutant, 4 parallel test runs per file
+gomu -format json ./... > gomu.json   # machine-readable report for CI
 ```
 
 ```text
@@ -43,6 +44,22 @@ Killed 241 | Survived 24 | Timed out 4 | Not covered 13 | Not viable 3
 | `-threshold` | `0`     | minimum score in percent; `0` disables. Fails if nothing was evaluated |
 | `-workers`   | `0`     | parallel test runs per file; `0` means `GOMAXPROCS`               |
 | `-v`         | off     | list every mutant instead of only the survivors                   |
+| `-format`    | `text`  | report on stdout: `text` or `json`                                |
+
+With `-format json`, stdout is one JSON document and nothing else (notes and errors go to stderr). `score` is
+`null` when no mutant was evaluated; `mutants` is always an array and lists the survivors, or every mutant with `-v`:
+
+```json
+{
+  "score": 91.1,
+  "evaluated": 269,
+  "summary": {"killed": 241, "survived": 24, "timedOut": 4, "notCovered": 13, "notViable": 3, "pending": 0},
+  "mutants": [
+    {"file": "internal/app/analyze.go", "line": 130, "column": 19, "operator": "logical",
+     "original": "&&", "replacement": "||", "status": "survived"}
+  ]
+}
+```
 
 Exit codes: `0` ok, `1` score below `-threshold`, `2` error (bad flag, failing baseline tests, ...).
 
@@ -91,7 +108,7 @@ internal/
     fsys/          sandbox (module copy) and overlay.json writer
     cover/         coverage profile parser
     gotest/        go test runner
-    report/        text report
+    report/        text and JSON reports
 ```
 
 Adding a mutation operator means adding one file that implements `mutator.Mutator` and registering it in

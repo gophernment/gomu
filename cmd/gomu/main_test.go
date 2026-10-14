@@ -3,6 +3,7 @@ package main
 import (
 	"bytes"
 	"context"
+	"encoding/json"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -78,6 +79,8 @@ func TestUsageErrors(t *testing.T) {
 		{"threshold over 100", []string{"-threshold", "101"}, exitError, "-threshold"},
 		{"NaN threshold", []string{"-threshold", "NaN"}, exitError, "-threshold"},
 		{"negative workers", []string{"-workers", "-2"}, exitError, "-workers"},
+		{"unknown format", []string{"-format", "xml"}, exitError, "-format"},
+		{"empty format", []string{"-format", ""}, exitError, "-format"},
 		{"missing directory", []string{"-dir", filepath.Join(empty, "nope")}, exitError, "module directory"},
 		{"directory without go.mod", []string{"-dir", empty}, exitError, "go.mod"},
 	}
@@ -537,4 +540,84 @@ func TestMutantsInSwitchCasesAreTested(t *testing.T) {
 	if !strings.Contains(stdout, "SURVIVED    sign.go:5:9  conditional  > -> >=") {
 		t.Errorf("the mutant in the case expression was not tested:\n%s", stdout)
 	}
+}
+
+func TestJSONFormat(t *testing.T) {
+	t.Parallel()
+	needGo(t)
+
+	dir := fixture(t, map[string]string{
+		"go.mod":      "module example.com/fx\n\ngo 1.21\n",
+		"add.go":      fxAdd,
+		"add_test.go": fxAddTest,
+	})
+	if err := os.Symlink("add.go", filepath.Join(dir, "link.go")); err != nil {
+		t.Skipf("symlinks not supported: %v", err)
+	}
+
+	type doc struct {
+		Score     *float64 `json:"score"`
+		Evaluated int      `json:"evaluated"`
+		Summary   map[string]int
+		Mutants   []struct {
+			File, Operator, Original, Replacement, Status string
+			Line, Column                                  int
+		}
+	}
+	decode := func(t *testing.T, s string) doc {
+		t.Helper()
+		var d doc
+		if err := json.Unmarshal([]byte(s), &d); err != nil {
+			t.Fatalf("stdout is not JSON: %v\n%s", err, s)
+		}
+		return d
+	}
+
+	t.Run("survivors", func(t *testing.T) {
+		code, stdout, stderr := gomu(context.Background(), "-dir", dir, "-format", "json")
+		if code != exitOK {
+			t.Fatalf("exit code = %d\n%s", code, stderr)
+		}
+		d := decode(t, stdout)
+		if d.Score == nil || *d.Score != 50 || d.Evaluated != 2 {
+			t.Errorf("score=%v evaluated=%d, want 50 and 2", d.Score, d.Evaluated)
+		}
+		if len(d.Mutants) != 1 || d.Mutants[0].Status != "survived" || d.Mutants[0].File != "add.go" ||
+			d.Mutants[0].Operator != "conditional" || d.Mutants[0].Original != ">" || d.Mutants[0].Replacement != ">=" {
+			t.Errorf("mutants = %+v, want the one survivor in add.go", d.Mutants)
+		}
+		if d.Summary["killed"] != 1 || d.Summary["survived"] != 1 || d.Summary["notCovered"] != 1 {
+			t.Errorf("summary = %v", d.Summary)
+		}
+		// Notes go to stderr so stdout stays a single JSON document.
+		if !strings.Contains(stderr, "symbolic links") {
+			t.Errorf("the skipped-link note should be on stderr: %q", stderr)
+		}
+	})
+
+	t.Run("verbose", func(t *testing.T) {
+		_, stdout, _ := gomu(context.Background(), "-dir", dir, "-format", "json", "-v")
+		if d := decode(t, stdout); len(d.Mutants) != 3 {
+			t.Errorf("got %d mutants, want all 3", len(d.Mutants))
+		}
+	})
+
+	t.Run("threshold still decides the exit code", func(t *testing.T) {
+		code, stdout, _ := gomu(context.Background(), "-dir", dir, "-format", "json", "-threshold", "90")
+		if code != exitBelowThreshold {
+			t.Errorf("exit code = %d, want %d", code, exitBelowThreshold)
+		}
+		decode(t, stdout) // the report is still a valid document
+	})
+
+	t.Run("nothing to mutate gives null score", func(t *testing.T) {
+		empty := fixture(t, map[string]string{"go.mod": "module example.com/e\n\ngo 1.21\n", "doc.go": "package e\n"})
+		_, stdout, _ := gomu(context.Background(), "-dir", empty, "-format", "json")
+		if d := decode(t, stdout); d.Score != nil || len(d.Mutants) != 0 {
+			t.Errorf("doc = %+v, want null score and no mutants", d)
+		}
+		if !strings.Contains(stdout, `"mutants": []`) {
+			t.Errorf("mutants must be [] not null:\n%s", stdout)
+		}
+	})
 }
