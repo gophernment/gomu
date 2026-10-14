@@ -10,7 +10,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/pallat/gomu/internal/adapter/fsys"
+	"github.com/gophernment/gomu/internal/adapter/fsys"
 )
 
 type overlayJSON struct {

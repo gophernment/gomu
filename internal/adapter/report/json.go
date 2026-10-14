@@ -8,7 +8,7 @@ import (
 	"io"
 	"slices"
 
-	"github.com/pallat/gomu/internal/mutant"
+	"github.com/gophernment/gomu/internal/mutant"
 )
 
 // JSON writes a machine-readable report, for CI and other tools.

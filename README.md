@@ -25,7 +25,7 @@ Score = (killed + timed out) / (killed + timed out + survived).
 ## Usage
 
 ```sh
-go install github.com/pallat/gomu/cmd/gomu@latest
+go install github.com/gophernment/gomu/cmd/gomu@latest
 
 gomu                          # every non-test file of the module in the current directory
 gomu internal/...             # a subtree

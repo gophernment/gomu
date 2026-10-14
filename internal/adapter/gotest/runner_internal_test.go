@@ -11,7 +11,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/pallat/gomu/internal/mutant"
+	"github.com/gophernment/gomu/internal/mutant"
 )
 
 func TestDefaultsAreSet(t *testing.T) {

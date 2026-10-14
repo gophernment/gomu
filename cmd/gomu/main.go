@@ -27,14 +27,14 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/pallat/gomu/internal/adapter/cover"
-	"github.com/pallat/gomu/internal/adapter/fsys"
-	"github.com/pallat/gomu/internal/adapter/goast"
-	"github.com/pallat/gomu/internal/adapter/gotest"
-	"github.com/pallat/gomu/internal/adapter/report"
-	"github.com/pallat/gomu/internal/app"
-	"github.com/pallat/gomu/internal/mutant"
-	"github.com/pallat/gomu/internal/mutator"
+	"github.com/gophernment/gomu/internal/adapter/cover"
+	"github.com/gophernment/gomu/internal/adapter/fsys"
+	"github.com/gophernment/gomu/internal/adapter/goast"
+	"github.com/gophernment/gomu/internal/adapter/gotest"
+	"github.com/gophernment/gomu/internal/adapter/report"
+	"github.com/gophernment/gomu/internal/app"
+	"github.com/gophernment/gomu/internal/mutant"
+	"github.com/gophernment/gomu/internal/mutator"
 )
 
 // Exit codes.

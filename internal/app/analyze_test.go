@@ -9,8 +9,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/pallat/gomu/internal/app"
-	"github.com/pallat/gomu/internal/mutant"
+	"github.com/gophernment/gomu/internal/app"
+	"github.com/gophernment/gomu/internal/mutant"
 )
 
 type fakeFinder struct {

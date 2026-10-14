@@ -5,8 +5,8 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/pallat/gomu/internal/adapter/report"
-	"github.com/pallat/gomu/internal/mutant"
+	"github.com/gophernment/gomu/internal/adapter/report"
+	"github.com/gophernment/gomu/internal/mutant"
 )
 
 func renderHTML(t *testing.T, r report.HTML, mutants []mutant.Mutant) string {

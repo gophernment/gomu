@@ -11,8 +11,8 @@ import (
 	"runtime"
 	"sync"
 
-	"github.com/pallat/gomu/internal/mutant"
-	"github.com/pallat/gomu/internal/mutator"
+	"github.com/gophernment/gomu/internal/mutant"
+	"github.com/gophernment/gomu/internal/mutator"
 )
 
 // Errors shared by the contexts in this package.

@@ -3,7 +3,7 @@ package mutant_test
 import (
 	"testing"
 
-	"github.com/pallat/gomu/internal/mutant"
+	"github.com/gophernment/gomu/internal/mutant"
 )
 
 func TestStatusString(t *testing.T) {

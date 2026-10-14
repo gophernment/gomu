@@ -10,9 +10,9 @@ import (
 	"testing"
 	"time"
 
-	"github.com/pallat/gomu/internal/adapter/fsys"
-	"github.com/pallat/gomu/internal/adapter/gotest"
-	"github.com/pallat/gomu/internal/mutant"
+	"github.com/gophernment/gomu/internal/adapter/fsys"
+	"github.com/gophernment/gomu/internal/adapter/gotest"
+	"github.com/gophernment/gomu/internal/mutant"
 )
 
 const (

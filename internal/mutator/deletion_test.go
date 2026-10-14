@@ -8,7 +8,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/pallat/gomu/internal/mutator"
+	"github.com/gophernment/gomu/internal/mutator"
 )
 
 func deleteEach(t *testing.T, src string) ([]string, []mutator.Mutation) {

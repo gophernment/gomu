@@ -10,9 +10,9 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/pallat/gomu/internal/adapter/goast"
-	"github.com/pallat/gomu/internal/mutant"
-	"github.com/pallat/gomu/internal/mutator"
+	"github.com/gophernment/gomu/internal/adapter/goast"
+	"github.com/gophernment/gomu/internal/mutant"
+	"github.com/gophernment/gomu/internal/mutator"
 )
 
 const sitesSrc = `package p

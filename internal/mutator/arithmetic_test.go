@@ -6,7 +6,7 @@ import (
 	"slices"
 	"testing"
 
-	"github.com/pallat/gomu/internal/mutator"
+	"github.com/gophernment/gomu/internal/mutator"
 )
 
 func TestArithmeticName(t *testing.T) {

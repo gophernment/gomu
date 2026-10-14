@@ -13,8 +13,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/pallat/gomu/internal/adapter/cover"
-	"github.com/pallat/gomu/internal/adapter/gotest"
+	"github.com/gophernment/gomu/internal/adapter/cover"
+	"github.com/gophernment/gomu/internal/adapter/gotest"
 )
 
 type brokenWriter struct{}

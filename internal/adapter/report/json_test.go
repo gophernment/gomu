@@ -7,8 +7,8 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/pallat/gomu/internal/adapter/report"
-	"github.com/pallat/gomu/internal/mutant"
+	"github.com/gophernment/gomu/internal/adapter/report"
+	"github.com/gophernment/gomu/internal/mutant"
 )
 
 type jsonReport struct {

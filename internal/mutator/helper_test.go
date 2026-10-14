@@ -10,7 +10,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/pallat/gomu/internal/mutator"
+	"github.com/gophernment/gomu/internal/mutator"
 )
 
 // mutateWith parses src as an expression, applies every mutation of m one at a

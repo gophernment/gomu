@@ -15,7 +15,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/pallat/gomu/internal/mutant"
+	"github.com/gophernment/gomu/internal/mutant"
 )
 
 const (

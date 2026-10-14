@@ -14,7 +14,7 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/pallat/gomu/internal/mutant"
+	"github.com/gophernment/gomu/internal/mutant"
 )
 
 // MaxFileSize is the largest source file, in bytes, that Parse accepts.

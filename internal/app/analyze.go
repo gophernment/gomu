@@ -6,7 +6,7 @@ import (
 	"math"
 	"time"
 
-	"github.com/pallat/gomu/internal/mutant"
+	"github.com/gophernment/gomu/internal/mutant"
 )
 
 const (

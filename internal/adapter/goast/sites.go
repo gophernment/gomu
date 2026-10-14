@@ -5,8 +5,8 @@ import (
 	"go/token"
 	"slices"
 
-	"github.com/pallat/gomu/internal/mutant"
-	"github.com/pallat/gomu/internal/mutator"
+	"github.com/gophernment/gomu/internal/mutant"
+	"github.com/gophernment/gomu/internal/mutator"
 )
 
 // Site is one place in a file where a mutation can be applied.

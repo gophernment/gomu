@@ -9,7 +9,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/pallat/gomu/internal/adapter/goast"
+	"github.com/gophernment/gomu/internal/adapter/goast"
 )
 
 const validSrc = `package p

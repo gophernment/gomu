@@ -8,7 +8,7 @@ import (
 	"slices"
 	"strings"
 
-	"github.com/pallat/gomu/internal/mutant"
+	"github.com/gophernment/gomu/internal/mutant"
 )
 
 // HTML writes a report as one self-contained web page: inline style, no

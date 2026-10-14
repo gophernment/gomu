@@ -11,7 +11,7 @@ import (
 	"testing"
 	"testing/iotest"
 
-	"github.com/pallat/gomu/internal/adapter/cover"
+	"github.com/gophernment/gomu/internal/adapter/cover"
 )
 
 func parse(t *testing.T, s string) *cover.Profile {

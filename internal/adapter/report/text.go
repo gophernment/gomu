@@ -10,7 +10,7 @@ import (
 	"strings"
 	"unicode"
 
-	"github.com/pallat/gomu/internal/mutant"
+	"github.com/gophernment/gomu/internal/mutant"
 )
 
 // Text writes a plain-text report.

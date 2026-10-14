@@ -12,7 +12,7 @@ import (
 	"testing"
 	"testing/fstest"
 
-	"github.com/pallat/gomu/internal/app"
+	"github.com/gophernment/gomu/internal/app"
 )
 
 func tree() fstest.MapFS {
