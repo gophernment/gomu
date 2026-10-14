@@ -105,6 +105,8 @@ and generated files are skipped. Ctrl-C (SIGINT/SIGTERM) stops the run and remov
    mutated file's package run, with `-failfast`, and `go vet` is off so vet findings never count as kills.
 4. `go` runs without a shell and with an allowlisted environment, so secrets in your environment do not reach
    the code under test. Output is scanned, not stored, so a noisy test cannot exhaust memory.
+   Temp files of the code under test go to a directory inside the copy, so a mutant that stops cleaning up
+   after itself leaves nothing behind in your system temp directory.
 
 Known limits:
 

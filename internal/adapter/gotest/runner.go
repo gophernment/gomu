@@ -11,6 +11,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"slices"
 	"strings"
 	"time"
 
@@ -54,6 +55,19 @@ type Runner struct {
 	timeout   time.Duration
 	grace     time.Duration
 	waitDelay time.Duration
+	tmp       string
+}
+
+// WithTempDir returns a copy of r whose go test processes use dir, which must
+// be an absolute path, as their temp directory. Whatever the tests leave
+// there can then be removed in one go.
+func (r *Runner) WithTempDir(dir string) (*Runner, error) {
+	if !filepath.IsAbs(dir) {
+		return nil, fmt.Errorf("%w: temp directory must be absolute", ErrInvalidJob)
+	}
+	c := *r
+	c.tmp = dir
+	return &c, nil
 }
 
 // NewRunner returns a Runner for the module at dir (pass a symlink-free path
@@ -188,7 +202,7 @@ func (r *Runner) execGo(ctx context.Context, limit time.Duration, args []string)
 	w := &markerWriter{}
 	cmd := exec.CommandContext(runCtx, r.goBin, args...)
 	cmd.Dir = r.dir
-	cmd.Env = filterEnv(os.Environ())
+	cmd.Env = r.env()
 	cmd.Stdout = w
 	cmd.Stderr = w
 	cmd.WaitDelay = r.waitDelay
@@ -214,6 +228,20 @@ func (r *Runner) execGo(ctx context.Context, limit time.Duration, args []string)
 		return res, fmt.Errorf("%w: %w", ErrUnexpected, cause(err))
 	}
 	return res, nil
+}
+
+// env is the allowlisted environment, with the temp directory replaced when
+// one was set.
+func (r *Runner) env() []string {
+	env := filterEnv(os.Environ())
+	if r.tmp == "" {
+		return env
+	}
+	env = slices.DeleteFunc(env, func(kv string) bool {
+		name, _, _ := strings.Cut(kv, "=")
+		return name == "TMPDIR" || name == "TMP" || name == "TEMP"
+	})
+	return append(env, "TMPDIR="+r.tmp, "TMP="+r.tmp, "TEMP="+r.tmp)
 }
 
 // filterEnv keeps only allowlisted variables, so secrets in the parent

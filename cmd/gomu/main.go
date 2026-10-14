@@ -192,8 +192,21 @@ func analyze(ctx context.Context, cfg config, stderr io.Writer) (app.Result, err
 	}
 	mutators := reg.All()
 
+	// Temp files of the code under test go into the sandbox, which Close removes.
+	tmp, err := sandbox.TempDir()
+	if err != nil {
+		return app.Result{}, err
+	}
+	newRunner := func(timeout time.Duration) (*gotest.Runner, error) {
+		r, err := gotest.NewRunner(work, timeout)
+		if err != nil {
+			return nil, err
+		}
+		return r.WithTempDir(tmp)
+	}
+
 	// The baseline does not use the per-mutant timeout, so any value will do.
-	baselineRunner, err := gotest.NewRunner(work, time.Minute)
+	baselineRunner, err := newRunner(time.Minute)
 	if err != nil {
 		return app.Result{}, err
 	}
@@ -203,7 +216,7 @@ func analyze(ctx context.Context, cfg config, stderr io.Writer) (app.Result, err
 		Baseline:  baseline{runner: baselineRunner, module: mod},
 		Threshold: cfg.threshold,
 		NewExecute: func(file string, timeout time.Duration) (app.Execute, error) {
-			runner, err := gotest.NewRunner(work, timeout)
+			runner, err := newRunner(timeout)
 			if err != nil {
 				return app.Execute{}, err
 			}

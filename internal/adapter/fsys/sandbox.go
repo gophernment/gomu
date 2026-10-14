@@ -88,6 +88,25 @@ func newSandbox(ctx context.Context, src string, lim limits) (*Sandbox, error) {
 // Dir returns the absolute, symlink-free path of the copy.
 func (s *Sandbox) Dir() string { return s.dir }
 
+// tempName is the directory TempDir makes inside the copy. Go tools ignore
+// directories that start with a dot.
+const tempName = ".gomu-tmp"
+
+// TempDir returns a private directory inside the copy, for the temp files of
+// the code under test. A mutant that stops cleaning up after itself then
+// leaves its mess in the copy, which Close removes, not in the system temp
+// directory. It returns ErrClosed after Close.
+func (s *Sandbox) TempDir() (string, error) {
+	if s.closed {
+		return "", ErrClosed
+	}
+	dir := filepath.Join(s.dir, tempName)
+	if err := os.MkdirAll(dir, 0o700); err != nil {
+		return "", fmt.Errorf("fsys: create temp dir: %w", cause(err))
+	}
+	return dir, nil
+}
+
 // Skipped returns how many symbolic links and special files were not copied.
 func (s *Sandbox) Skipped() int { return s.skipped }
 

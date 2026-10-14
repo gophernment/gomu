@@ -456,6 +456,37 @@ func TestSandboxDirIsAbsoluteWithRelativeTmpdir(t *testing.T) {
 	}
 }
 
+// Not parallel: t.Setenv changes process-wide state. TMPDIR is reached through
+// a symbolic link, like /var -> /private/var on macOS, and the go tool compares
+// real paths, so Dir() must have the link resolved.
+func TestSandboxDirResolvesSymlinkedTmpdir(t *testing.T) {
+	src := tree(t, map[string]string{"a.go": "package p\n"})
+
+	base, err := filepath.EvalSymlinks(t.TempDir())
+	if err != nil {
+		t.Fatal(err)
+	}
+	real := filepath.Join(base, "real")
+	if err := os.Mkdir(real, 0o700); err != nil {
+		t.Fatal(err)
+	}
+	link := filepath.Join(base, "link")
+	if err := os.Symlink(real, link); err != nil {
+		t.Skipf("symlinks not supported: %v", err)
+	}
+	t.Setenv("TMPDIR", link)
+
+	s, err := NewSandbox(context.Background(), src)
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = s.Close() })
+
+	if filepath.Dir(s.Dir()) != real {
+		t.Errorf("Dir() = %q, want a directory directly inside the resolved %q", s.Dir(), real)
+	}
+}
+
 // liarFS reports a smaller size for one file than it really has, like a file
 // that grows between Stat and read.
 type liarFS struct {
@@ -527,5 +558,43 @@ func TestSandboxBoundsFilesThatGrowWhileCopying(t *testing.T) {
 				t.Fatal(err)
 			}
 		})
+	}
+}
+
+func TestSandboxTempDir(t *testing.T) {
+	t.Parallel()
+
+	s := newTestSandbox(t, tree(t, map[string]string{"a.go": "package p\n"}))
+
+	tmp, err := s.TempDir()
+	if err != nil {
+		t.Fatalf("TempDir() error = %v", err)
+	}
+	if !filepath.IsAbs(tmp) || filepath.Dir(tmp) != s.Dir() {
+		t.Errorf("TempDir() = %q, want an absolute directory directly inside %q", tmp, s.Dir())
+	}
+	if !strings.HasPrefix(filepath.Base(tmp), ".") {
+		t.Errorf("TempDir() = %q: the go tool would see it as a package directory", tmp)
+	}
+	if info, err := os.Stat(tmp); err != nil || !info.IsDir() || info.Mode().Perm() != 0o700 {
+		t.Errorf("temp dir stat = %v, %v, want a 0700 directory", info, err)
+	}
+	if again, err := s.TempDir(); err != nil || again != tmp {
+		t.Errorf("second TempDir() = %q, %v, want %q", again, err, tmp)
+	}
+
+	// What the code under test leaves there goes away with the sandbox.
+	if err := os.WriteFile(filepath.Join(tmp, "junk"), []byte("x"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	dir := s.Dir()
+	if err := s.Close(); err != nil {
+		t.Fatalf("Close() error = %v", err)
+	}
+	if _, err := os.Stat(dir); !errors.Is(err, fs.ErrNotExist) {
+		t.Errorf("sandbox still exists after Close: %v", err)
+	}
+	if _, err := s.TempDir(); !errors.Is(err, ErrClosed) {
+		t.Errorf("TempDir() after Close error = %v, want %v", err, ErrClosed)
 	}
 }
